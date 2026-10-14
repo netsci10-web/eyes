@@ -36,9 +36,9 @@ export default function Step2Accommodative({ isActive, onComplete, speak }: Step
     if (!isPlaying) return;
 
     if (focusState === "NEAR") {
-      speak("가까운 글씨에 초점을 맞추세요. 모양체 근육이 수축하여 수정체가 두꺼워집니다.");
+      speak("가까운 초점 집중");
     } else {
-      speak("먼 곳을 바라보며 눈에 힘을 빼세요. 모양체 근육이 완전히 이완되어 수정체가 얇아집니다.");
+      speak("먼 곳 이완, 힘 빼기");
     }
   }, [focusState, isPlaying]);
 

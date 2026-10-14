@@ -20,6 +20,7 @@ import {
   HelpCircle,
   Activity,
   RotateCcw,
+  Sliders,
 } from "lucide-react";
 import { useTTS } from "./hooks/useTTS";
 import Step1BlinkSqueeze from "./components/Step1BlinkSqueeze";
@@ -29,6 +30,7 @@ import Step4Gabor from "./components/Step4Gabor";
 import Step5FarFocus from "./components/Step5FarFocus";
 import ScienceGuide from "./components/ScienceGuide";
 import AnatomyModal from "./components/AnatomyModal";
+import VoiceSettingsModal from "./components/VoiceSettingsModal";
 
 type StepId = 1 | 2 | 3 | 4 | 5;
 
@@ -48,9 +50,15 @@ export default function App() {
     activeSubtitle,
     rate,
     setRate,
+    pitch,
+    setPitch,
+    voices,
+    selectedVoice,
+    setSelectedVoice,
     isAiVoice,
     setIsAiVoice,
     isLoadingAiAudio,
+    testVoice,
   } = useTTS();
 
   const [activeStep, setActiveStep] = useState<StepId>(1);
@@ -61,6 +69,7 @@ export default function App() {
   const [history, setHistory] = useState<TrainingHistory[]>([]);
   const [showFaq, setShowFaq] = useState(false);
   const [isAnatomyModalOpen, setIsAnatomyModalOpen] = useState(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
 
   // Load history and streak from localStorage on mount
   useEffect(() => {
@@ -239,7 +248,7 @@ export default function App() {
               title="눈의 구조와 5단계 작용 원리 3D 해부도 보기"
             >
               <Eye className="w-3.5 h-3.5 text-amber-400" />
-              <span>눈 구조 & 원리 3D 도감</span>
+              <span>눈 구조 3D 도감</span>
             </button>
 
             <button
@@ -251,23 +260,15 @@ export default function App() {
               <span>통합 5단계 풀 코스 시작 (권장)</span>
             </button>
 
-            {/* AI Natural Voice Toggle */}
+            {/* Voice Settings Trigger (Natural voice selection & preview) */}
             <button
-              onClick={() => {
-                const nextMode = !isAiVoice;
-                setIsAiVoice(nextMode);
-                speak(nextMode ? "고음질 AI 자연어 음성 코치가 켜졌습니다." : "브라우저 기본 음성으로 전환되었습니다.");
-              }}
-              id="top-ai-voice-toggle"
-              className={`p-2 rounded-xl border text-xs font-semibold transition-all flex items-center space-x-1 cursor-pointer ${
-                isAiVoice
-                  ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-              }`}
-              title={isAiVoice ? "AI 고음질 자연어 음성 활성화됨" : "브라우저 기본 음성 사용 중"}
+              onClick={() => setIsVoiceModalOpen(true)}
+              id="top-voice-settings-btn"
+              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs px-3 py-2 rounded-xl border border-indigo-200 transition-all flex items-center space-x-1.5 active:scale-95 cursor-pointer shadow-2xs"
+              title="자연스러운 음성 코치 설정 및 실시간 미리듣기"
             >
-              <Sparkles className={`w-3.5 h-3.5 ${isAiVoice ? "text-indigo-600" : "text-slate-400"}`} />
-              <span className="hidden md:inline">{isAiVoice ? "AI 고음질 음성" : "기본 음성"}</span>
+              <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">음성 설정</span>
             </button>
 
             {/* TTS Mute Toggle */}
@@ -292,23 +293,6 @@ export default function App() {
               {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
               <span className="hidden md:inline">{isMuted ? "음성 꺼짐" : "음성 켜짐"}</span>
             </button>
-
-            {/* Speech rate controller */}
-            {!isMuted && isSupported && (
-              <div className="hidden lg:flex items-center space-x-1.5 bg-slate-100 px-2 py-1 rounded-lg text-[10px] border border-slate-200">
-                <span className="text-slate-500 font-semibold">음성 속도:</span>
-                <input
-                  type="range"
-                  min="0.8"
-                  max="1.2"
-                  step="0.1"
-                  value={rate}
-                  onChange={(e) => setRate(parseFloat(e.target.value))}
-                  className="w-12 h-1 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                />
-                <span className="text-slate-700 font-mono font-bold">{rate.toFixed(1)}x</span>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -357,7 +341,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {([1, 2, 3, 4, 5] as const).map((id: StepId) => {
                 const isActive = activeStep === id;
                 const isCompleted = completedSteps.includes(id);
@@ -367,42 +351,58 @@ export default function App() {
                   <button
                     key={id}
                     onClick={() => {
-                      if (!sessionActive) {
-                        setActiveStep(id);
-                        speak(`${id}단계 훈련을 띄워 드렸습니다.`);
+                      setActiveStep(id);
+                      speak(`${id}단계, ${details.name} 화면으로 이동했습니다.`);
+                      // Smooth scroll to the right-side active workspace so content is immediately visible
+                      const target = document.getElementById("active-workspace-card");
+                      if (target) {
+                        target.scrollIntoView({ behavior: "smooth", block: "start" });
                       }
                     }}
-                    disabled={sessionActive}
-                    className={`w-full text-left p-3 rounded-xl border transition-all flex items-start space-x-3 ${
+                    className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between group cursor-pointer ${
                       isActive
-                        ? "bg-indigo-50/50 border-indigo-200 shadow-xs scale-[1.01]"
-                        : "bg-white border-slate-100 hover:border-slate-300"
-                    } ${sessionActive ? "cursor-not-allowed" : "cursor-pointer"}`}
+                        ? "bg-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm scale-[1.01]"
+                        : "bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50/80 shadow-2xs"
+                    }`}
                   >
-                    <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono shrink-0 transition-all ${
-                        isCompleted
-                          ? "bg-emerald-500 text-white"
-                          : isActive
-                          ? "bg-indigo-600 text-white"
-                          : "bg-slate-100 text-slate-400"
-                      }`}
-                    >
-                      {id}
+                    <div className="flex items-start space-x-3">
+                      <div
+                        className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold font-mono shrink-0 transition-all shadow-2xs ${
+                          isCompleted
+                            ? "bg-emerald-500 text-white"
+                            : isActive
+                            ? "bg-indigo-600 text-white"
+                            : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
+                        }`}
+                      >
+                        {isCompleted ? "✓" : id}
+                      </div>
+
+                      <div className="space-y-0.5 text-left">
+                        <div className="flex items-center space-x-1.5">
+                          <span className={`text-xs font-extrabold ${isActive ? "text-indigo-950 font-black" : "text-slate-800"}`}>
+                            {details.name}
+                          </span>
+                          <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md font-medium">
+                            {details.badge}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                          {details.desc}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="space-y-0.5 text-left">
-                      <div className="flex items-center space-x-1.5">
-                        <span className={`text-xs font-extrabold ${isActive ? "text-slate-800" : "text-slate-600"}`}>
-                          {details.name}
+                    {/* Active Indicator status badge */}
+                    <div className="shrink-0 pl-2">
+                      {isActive ? (
+                        <span className="flex items-center space-x-1 text-[10px] bg-indigo-600 text-white font-extrabold px-2 py-0.5 rounded-full shadow-2xs animate-pulse">
+                          <span className="w-1.5 h-1.5 bg-emerald-300 rounded-full"></span>
+                          <span>진행 중</span>
                         </span>
-                        <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-sm font-medium">
-                          {details.badge}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                        {details.desc}
-                      </p>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all" />
+                      )}
                     </div>
                   </button>
                 );
@@ -500,65 +500,110 @@ export default function App() {
               </div>
             )}
 
-            {/* Breadcrumb Steps Header */}
-            <div className="border-b border-slate-100 pb-4 mb-6 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center space-x-2">
-                <span className="text-xs bg-indigo-100 text-indigo-800 font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider">
-                  STEP {activeStep}/5
-                </span>
-                <span className="text-sm font-bold text-slate-700">
-                  {stepDetails[activeStep].name}
-                </span>
-                <button
-                  onClick={() => setIsAnatomyModalOpen(true)}
-                  className="hidden sm:flex items-center space-x-1 text-[11px] bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer ml-1"
-                  title="이 단계의 3D 인체 해부학적 작용 원리 보기"
-                >
-                  <Eye className="w-3 h-3 text-indigo-500" />
-                  <span>3D 해부학 원리</span>
-                </button>
+            {/* Breadcrumb Steps Header with direct interactive switcher */}
+            <div className="border-b border-slate-100 pb-4 mb-6 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs bg-indigo-600 text-white font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider shadow-2xs">
+                    STEP {activeStep} / 5
+                  </span>
+                  <span className="text-sm md:text-base font-extrabold text-slate-800">
+                    {stepDetails[activeStep].name}
+                  </span>
+                  <span className="hidden sm:inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                    {stepDetails[activeStep].badge}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    onClick={() => setIsAnatomyModalOpen(true)}
+                    className="flex items-center space-x-1 text-xs bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 px-2.5 py-1.5 rounded-xl border border-slate-200 transition-colors cursor-pointer font-bold shadow-2xs"
+                    title="이 단계의 3D 인체 해부학적 작용 원리 보기"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>3D 해부학</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsVoiceModalOpen(true)}
+                    className="flex items-center space-x-1 text-xs bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 px-2.5 py-1.5 rounded-xl border border-slate-200 transition-colors cursor-pointer font-bold shadow-2xs"
+                    title="자연스러운 음성 코치 설정"
+                  >
+                    <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>음성 설정</span>
+                  </button>
+
+                  {/* Individual step jumper */}
+                  <div className="flex items-center space-x-1 pl-1 border-l border-slate-200">
+                    <button
+                      disabled={activeStep === 1}
+                      onClick={() => {
+                        const prev = (activeStep - 1) as StepId;
+                        setActiveStep(prev);
+                        speak(`${prev}단계로 이동했습니다.`);
+                      }}
+                      className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
+                        activeStep === 1
+                          ? "text-slate-300 bg-slate-50 cursor-not-allowed"
+                          : "text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
+                      }`}
+                      title="이전 단계"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      disabled={activeStep === 5}
+                      onClick={() => {
+                        const next = (activeStep + 1) as StepId;
+                        setActiveStep(next);
+                        speak(`${next}단계로 이동했습니다.`);
+                      }}
+                      className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
+                        activeStep === 5
+                          ? "text-slate-300 bg-slate-50 cursor-not-allowed"
+                          : "text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
+                      }`}
+                      title="다음 단계"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* Individual step jumper */}
-              <div className="flex items-center space-x-1">
-                <button
-                  disabled={activeStep === 1 || sessionActive}
-                  onClick={() => {
-                    const prev = (activeStep - 1) as StepId;
-                    setActiveStep(prev);
-                    speak(`${prev}단계로 이동했습니다.`);
-                  }}
-                  className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
-                    activeStep === 1 || sessionActive
-                      ? "text-slate-300 bg-slate-50 cursor-not-allowed"
-                      : "text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
-                  }`}
-                  title="이전 단계"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-
-                <button
-                  disabled={activeStep === 5 || sessionActive}
-                  onClick={() => {
-                    const next = (activeStep + 1) as StepId;
-                    setActiveStep(next);
-                    speak(`${next}단계로 이동했습니다.`);
-                  }}
-                  className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
-                    activeStep === 5 || sessionActive
-                      ? "text-slate-300 bg-slate-50 cursor-not-allowed"
-                      : "text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
-                  }`}
-                  title="다음 단계"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+              {/* Quick Step Switcher Tabs directly on the workspace header */}
+              <div className="flex items-center space-x-1.5 pt-1 overflow-x-auto pb-0.5">
+                {([1, 2, 3, 4, 5] as const).map((sId) => {
+                  const isCurrent = activeStep === sId;
+                  const isDone = completedSteps.includes(sId);
+                  return (
+                    <button
+                      key={sId}
+                      onClick={() => {
+                        setActiveStep(sId);
+                        speak(`${sId}단계 훈련으로 이동했습니다.`);
+                      }}
+                      className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center space-x-1.5 ${
+                        isCurrent
+                          ? "bg-indigo-600 text-white shadow-xs scale-102"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800"
+                      }`}
+                    >
+                      <span>{sId}단계</span>
+                      <span className="text-[10px] opacity-80 hidden md:inline">
+                        ({stepDetails[sId].badge})
+                      </span>
+                      {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Dynamic Rendering of Step Workout Modules */}
-            <div className="transition-all duration-300" id="step-render-zone">
+            {/* Dynamic Rendering of Step Workout Modules with key to ensure clean mount */}
+            <div className="transition-all duration-300" id="step-render-zone" key={activeStep}>
               {activeStep === 1 && (
                 <Step1BlinkSqueeze
                   isActive={activeStep === 1}
@@ -653,6 +698,22 @@ export default function App() {
         isOpen={isAnatomyModalOpen}
         onClose={() => setIsAnatomyModalOpen(false)}
         initialStep={activeStep}
+      />
+
+      {/* High-Fidelity Natural Voice Settings Modal */}
+      <VoiceSettingsModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        voices={voices}
+        selectedVoice={selectedVoice}
+        onSelectVoice={setSelectedVoice}
+        rate={rate}
+        onRateChange={setRate}
+        pitch={pitch}
+        onPitchChange={setPitch}
+        onTestVoice={testVoice}
+        isAiVoice={isAiVoice}
+        onToggleAiVoice={setIsAiVoice}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,9 +7,44 @@
     <meta name="description" content="안과학 및 인지신경학계에서 입증된 과학적 근거 기반 5단계 눈 운동 프로그램" />
     <meta property="og:title" content="과학적 5단계 눈 운동 코치" />
     <meta property="og:description" content="안과학 및 인지신경학계에서 입증된 과학적 근거 기반 5단계 눈 운동 프로그램" />
+    <style>
+      body {
+        margin: 0;
+        background-color: #0f172a;
+        color: #f8fafc;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      #root:empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        gap: 16px;
+      }
+      .initial-loader {
+        width: 44px;
+        height: 44px;
+        border: 3px solid rgba(99, 102, 241, 0.2);
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="initial-loader"></div>
+      <div style="font-size: 13px; color: #94a3b8; font-weight: 500;">과학적 5단계 눈 운동 코치를 불러오는 중...</div>
+    </div>
+    <noscript>
+      <div style="padding: 24px; text-align: center; color: #f87171;">
+        이 프로그램을 실행하려면 자바스크립트(JavaScript) 활성화가 필요합니다.
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

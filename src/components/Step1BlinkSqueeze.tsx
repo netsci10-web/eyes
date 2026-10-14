@@ -27,16 +27,16 @@ export default function Step1BlinkSqueeze({ isActive, onComplete, speak }: Step1
     }
   }, [isActive]);
 
-  // Voice coaching on phase changes
+  // Voice coaching on phase changes (concise, natural cues that never cut off)
   useEffect(() => {
     if (!isPlaying) return;
 
     if (phase === "BLINK") {
-      speak("가볍게 눈을 감으세요");
+      speak("가볍게 감기");
     } else if (phase === "SQUEEZE") {
-      speak("눈꺼풀을 지긋이 꽉 쥐어짜듯 감아 마이봄샘 기름을 분비시키세요");
+      speak("지그시 압박");
     } else if (phase === "OPEN") {
-      speak("눈을 크게 뜨며 분비된 기름막을 눈물 위에 고르게 펴주세요");
+      speak("크게 뜨기");
     }
   }, [phase, isPlaying]);
 

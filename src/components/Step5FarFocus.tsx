@@ -33,11 +33,11 @@ export default function Step5FarFocus({ isActive, onComplete, speak }: Step5Prop
     if (!isPlaying) return;
 
     if (breathPhase === "INHALE") {
-      speak("천천히 코로 깊게 숨을 들이마시세요");
+      speak("깊게 들이마시기");
     } else if (breathPhase === "HOLD") {
-      speak("숨을 편히 멈추고 6미터 너머 먼 곳에 초점을 푸세요");
+      speak("숨 멈추고 먼 곳 응시");
     } else if (breathPhase === "EXHALE") {
-      speak("입으로 천천히 내쉬며 눈과 어깨의 긴장을 비워내세요");
+      speak("편안하게 내쉬기");
     }
   }, [breathPhase, isPlaying]);
 

@@ -66,8 +66,14 @@ app.post("/api/tts", async (req, res) => {
 
     res.status(500).json({ error: "No audio generated from model" });
   } catch (error: any) {
-    console.error("Gemini TTS Error:", error?.message || error);
-    res.status(500).json({ error: error?.message || "Internal TTS error" });
+    const errorMsg = error?.message || String(error);
+    const isQuota = errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("RESOURCE_EXHAUSTED");
+    if (isQuota) {
+      console.warn("Gemini TTS Quota Exceeded. Client will seamlessly use high-quality local synthesizer.");
+      return res.status(429).json({ error: "quota_exceeded", isQuota: true });
+    }
+    console.error("Gemini TTS Error:", errorMsg);
+    res.status(500).json({ error: errorMsg });
   }
 });
 

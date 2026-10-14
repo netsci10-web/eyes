@@ -294,7 +294,7 @@ export default function AnatomyModal({ isOpen, onClose, initialStep = 1 }: Anato
                     onClick={() => setIsSimulatingAction(!isSimulatingAction)}
                     className="absolute top-3 right-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[10px] px-2.5 py-1 rounded-full border border-emerald-500/40 flex items-center space-x-1 cursor-pointer transition-all"
                   >
-                    <span>{isSimulatingAction ? "근거리 수축 (+14D)" : "원거리 이완 (+0D)"}</span>
+                    <span>{isSimulatingAction ? "근거리 조절 (+3.3D 수축)" : "원거리 이완 (0.0D 휴식)"}</span>
                   </button>
 
                   <svg className="w-full max-w-sm h-64" viewBox="0 0 320 200" fill="none">
@@ -500,12 +500,16 @@ export default function AnatomyModal({ isOpen, onClose, initialStep = 1 }: Anato
                     <text x="110" y="105" fill="#FB923C" fontSize="9" fontWeight="bold">3. 외직근 (LR - 외전)</text>
 
                     {/* 4. Superior Oblique (상사근 - 트로클레아 도르래 통과 구조) */}
-                    <path d="M 60,90 L 160,35" stroke="#F59E0B" strokeWidth="4" />
+                    <path d="M 60,90 L 160,35" stroke="#818CF8" strokeWidth="4" />
                     {/* Trochlea Pulley (도르래) */}
-                    <circle cx="160" cy="35" r="5" fill="#FEF08A" stroke="#B45309" strokeWidth="1.5" />
-                    <text x="170" y="38" fill="#FEF08A" fontSize="8" fontWeight="bold">도르래(Trochlea)</text>
+                    <circle cx="160" cy="35" r="5" fill="#FEF08A" stroke="#4F46E5" strokeWidth="1.5" />
+                    <text x="170" y="38" fill="#A5B4FC" fontSize="8" fontWeight="bold">4. 상사근(SO · 도르래)</text>
                     {/* Tendon passing through pulley to eye */}
-                    <path d="M 160,35 Q 185,45 175,80" stroke="#FBBF24" strokeWidth="3" strokeDasharray="2,2" />
+                    <path d="M 160,35 Q 185,45 175,80" stroke="#818CF8" strokeWidth="3" strokeDasharray="2,2" />
+
+                    {/* 5. Inferior Oblique (하사근 - 안구 하단 경사 주행) */}
+                    <path d="M 150,175 Q 190,170 205,140" stroke="#F43F5E" strokeWidth="4" strokeLinecap="round" />
+                    <text x="210" y="165" fill="#FB7185" fontSize="8" fontWeight="bold">5. 하사근(IO · 거상)</text>
                   </svg>
                 </div>
 

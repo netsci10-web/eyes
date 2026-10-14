@@ -33,7 +33,7 @@ export default function Step5FarFocus({
   resetTrigger,
 }: Step5Props) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(20);
+  const [secondsLeft, setSecondsLeft] = useState(24);
   const [breathPhase, setBreathPhase] = useState<BreathPhase>("INHALE");
   const [breathSeconds, setBreathSeconds] = useState(4);
   const [viewMode, setViewMode] = useState<ViewMode>("REALISTIC_VISTA");
@@ -63,24 +63,27 @@ export default function Step5FarFocus({
     onStateUpdate?.({
       isPlaying,
       secondsLeft,
-      totalSeconds: 20,
+      totalSeconds: 24,
       phaseInfo: `20-20-20 원거리 이완 (${breathPhase === "INHALE" ? "들숨" : breathPhase === "HOLD" ? "숨 멈춤" : "날숨"} ${breathSeconds}초)`,
       extraInfo: `부교감신경 긴장 완화도 ${parasympatheticTone}%`,
     });
   }, [isPlaying, secondsLeft, breathPhase, breathSeconds, parasympatheticTone]);
 
-  // Speech initialization
-  useEffect(() => {
-    if (isActive && isPlaying) {
-      speak(
-        "마지막 단계인 20-20-20 원거리 이완 훈련입니다. 화면에서 시선을 돌려, 최소 6미터 이상 떨어진 먼 창밖 풍경이나 벽을 20초간 무기장 상태로 바라보십시오. 호흡 가이드에 맞춰 깊게 심호흡하세요."
-      );
-    }
-  }, [isActive]);
-
   // Voice coaching on breath phase changes
+  const isInitialMountRef = useRef(true);
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying) {
+      isInitialMountRef.current = true;
+      return;
+    }
+
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      if (secondsLeft === 24) {
+        speak("5단계: 20-20-20 원거리 이완을 시작합니다. 먼 곳을 바라보며 깊게 들이마시기");
+        return;
+      }
+    }
 
     if (breathPhase === "INHALE") {
       speak("깊게 들이마시기");
@@ -130,7 +133,7 @@ export default function Step5FarFocus({
   }, [isPlaying, secondsLeft, onComplete]);
 
   const togglePlay = () => {
-    if (!isPlaying && secondsLeft === 20) {
+    if (!isPlaying && secondsLeft === 24) {
       setBreathPhase("INHALE");
       setBreathSeconds(4);
       setParasympatheticTone(40);
@@ -140,7 +143,7 @@ export default function Step5FarFocus({
 
   const resetExercise = () => {
     setIsPlaying(false);
-    setSecondsLeft(20);
+    setSecondsLeft(24);
     setBreathPhase("INHALE");
     setBreathSeconds(4);
     setParasympatheticTone(40);
@@ -441,7 +444,7 @@ export default function Step5FarFocus({
           </div>
 
           <div className="flex items-center space-x-3">
-            <span className="text-slate-400">잔여 시간: <strong className="text-amber-400 font-mono">{secondsLeft}초 / 20초</strong></span>
+            <span className="text-slate-400">잔여 시간: <strong className="text-amber-400 font-mono">{secondsLeft}초 / 24초</strong></span>
           </div>
         </div>
       </div>

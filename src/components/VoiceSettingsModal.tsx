@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Volume2, Sparkles, Sliders, Check, Play, UserCheck, RefreshCw, ShieldCheck } from "lucide-react";
+import { X, Volume2, Sparkles, Sliders, Check, Play, UserCheck, RefreshCw, ShieldCheck, Captions } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface VoiceSettingsModalProps {
@@ -15,6 +15,8 @@ interface VoiceSettingsModalProps {
   onTestVoice: () => void;
   isAiVoice: boolean;
   onToggleAiVoice: (val: boolean) => void;
+  showSubtitles: boolean;
+  onToggleSubtitles: (val: boolean) => void;
 }
 
 export default function VoiceSettingsModal({
@@ -30,6 +32,8 @@ export default function VoiceSettingsModal({
   onTestVoice,
   isAiVoice,
   onToggleAiVoice,
+  showSubtitles,
+  onToggleSubtitles,
 }: VoiceSettingsModalProps) {
   if (!isOpen) return null;
 
@@ -213,6 +217,57 @@ export default function VoiceSettingsModal({
                   <span>밝고 높음 (1.25)</span>
                 </div>
               </div>
+            </div>
+
+            {/* Subtitle Display Toggle Section */}
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="bg-indigo-100 text-indigo-700 p-2 rounded-xl">
+                    <Captions className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-xs text-slate-800 flex items-center space-x-1.5">
+                      <span>실시간 음성 코칭 자막 표시</span>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.2 rounded font-semibold border border-indigo-200">
+                        선택 옵션
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      음성 안내 멘트를 화면 하단에 텍스트 자막으로 함께 표시합니다
+                    </p>
+                  </div>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showSubtitles}
+                    onChange={(e) => onToggleSubtitles(e.target.checked)}
+                    className="sr-only peer"
+                    id="toggle-subtitles-checkbox"
+                  />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+
+              {/* Subtitle Preview box */}
+              {showSubtitles ? (
+                <div className="bg-slate-900 text-emerald-400 font-mono text-[11px] px-3.5 py-2 rounded-xl border border-slate-700 flex items-center justify-between">
+                  <div className="flex items-center space-x-2 truncate">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <span className="truncate">[자막 미리보기] "눈을 3초간 가볍게 감고 안구를 이완하세요."</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800 shrink-0 ml-2">
+                    자막 켜짐
+                  </span>
+                </div>
+              ) : (
+                <div className="bg-slate-100 text-slate-500 text-[11px] px-3 py-2 rounded-xl border border-slate-200 flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                  <span>자막이 꺼져 있습니다. 음성 안내만 소리로 출력됩니다.</span>
+                </div>
+              )}
             </div>
 
             {/* Anti-Cutoff & Quality Guarantees */}

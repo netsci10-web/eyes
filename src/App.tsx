@@ -84,6 +84,25 @@ export default function App() {
   const [showBottomMenu, setShowBottomMenu] = useState(true);
   const [showProximityTip, setShowProximityTip] = useState(false);
 
+  // Subtitle (자막) toggle state with localStorage persistence
+  const [showSubtitles, setShowSubtitles] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem("ophthal_show_subtitles");
+      return stored !== "false";
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggleSubtitles = (enabled: boolean) => {
+    setShowSubtitles(enabled);
+    try {
+      localStorage.setItem("ophthal_show_subtitles", String(enabled));
+    } catch (e) {
+      console.warn("Failed to persist subtitle preference:", e);
+    }
+  };
+
   const [stepState, setStepState] = useState<{
     isPlaying: boolean;
     secondsLeft: number;
@@ -159,16 +178,20 @@ export default function App() {
       const updated = [...completedSteps, stepId];
       setCompletedSteps(updated);
 
-      // Auto advance to next step in automatic session mode
+      // Auto advance and launch next step in automatic session mode
       if (sessionActive && stepId < 5) {
+        const nextStep = (stepId + 1) as StepId;
+        speak(`${stepId}단계 완료! 잠시 숨을 고르고 다음 ${nextStep}단계 훈련을 시작합니다.`);
         setTimeout(() => {
-          const nextStep = (stepId + 1) as StepId;
           setActiveStep(nextStep);
-          speak(`다음 ${nextStep}단계 훈련을 준비하십시오.`);
-        }, 3000);
+          setTimeout(() => {
+            setPlayTrigger(Date.now());
+          }, 800);
+        }, 2500);
       } else if (stepId === 5) {
         setSessionActive(false);
         saveSessionToHistory(updated);
+        speak("축하합니다! 과학적 5단계 눈 운동 전 과정을 모두 성공적으로 완주하셨습니다. 눈의 피로가 풀리고 시야가 맑아졌습니다.");
       }
     }
   };
@@ -181,7 +204,11 @@ export default function App() {
     };
     const updatedHistory = [newRecord, ...history].slice(0, 30);
     setHistory(updatedHistory);
-    localStorage.setItem("ophthal_training_history", JSON.stringify(updatedHistory));
+    try {
+      localStorage.setItem("ophthal_training_history", JSON.stringify(updatedHistory));
+    } catch (e) {
+      console.warn("Failed to save history to localStorage:", e);
+    }
     calculateStreak(updatedHistory);
   };
 
@@ -200,7 +227,11 @@ export default function App() {
 
   const resetAllProgress = () => {
     if (confirm("정말로 모든 과거 훈련 이력 및 연속 달성 데이터를 초기화하시겠습니까?")) {
-      localStorage.removeItem("ophthal_training_history");
+      try {
+        localStorage.removeItem("ophthal_training_history");
+      } catch (e) {
+        console.warn("Failed to remove history from localStorage:", e);
+      }
       setHistory([]);
       setStreakDays(0);
       setCompletedSteps([]);
@@ -405,7 +436,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white">
       {/* Real-time Subtitles / Coaching Floating overlay bar */}
-      {activeSubtitle && (
+      {showSubtitles && activeSubtitle && (
         <div
           className={`fixed ${
             isFullscreen ? "bottom-20" : "bottom-6"
@@ -1097,6 +1128,8 @@ export default function App() {
         onTestVoice={testVoice}
         isAiVoice={isAiVoice}
         onToggleAiVoice={setIsAiVoice}
+        showSubtitles={showSubtitles}
+        onToggleSubtitles={handleToggleSubtitles}
       />
 
       {/* History & Durable Stats Modal */}

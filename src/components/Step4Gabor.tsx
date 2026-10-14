@@ -102,13 +102,17 @@ export default function Step4Gabor({
   }, [isPlaying, secondsLeft, score, contrast, streak]);
 
   // Trigger speech
+  const isInitialMountRef = useRef(true);
   useEffect(() => {
-    if (isActive && isPlaying) {
-      speak(
-        "네 번째 단계인 대조 감도 극대화 훈련을 시작합니다. 화면 중앙의 흐릿한 줄무늬 패치 방향을 판별하여 시각 피질의 대조 인지 한계치를 높이십시오."
-      );
+    if (!isPlaying) {
+      isInitialMountRef.current = true;
+      return;
     }
-  }, [isActive]);
+    if (isInitialMountRef.current && secondsLeft === 60) {
+      isInitialMountRef.current = false;
+      speak("4단계: 대비 감도 확장 훈련을 시작합니다. 중앙 줄무늬의 기울기 각도를 선택하세요.");
+    }
+  }, [isPlaying, secondsLeft]);
 
   // Handle mathematical drawing
   useEffect(() => {
@@ -201,8 +205,13 @@ export default function Step4Gabor({
   };
 
   const generateNewPatch = () => {
-    const nextIndex = Math.floor(Math.random() * ORIENTATIONS.length);
-    setCurrentAngleIndex(nextIndex);
+    setCurrentAngleIndex((prev) => {
+      let nextIndex = Math.floor(Math.random() * ORIENTATIONS.length);
+      while (nextIndex === prev) {
+        nextIndex = Math.floor(Math.random() * ORIENTATIONS.length);
+      }
+      return nextIndex;
+    });
     setActionPotentialHz(Math.floor(85 + Math.random() * 40));
   };
 

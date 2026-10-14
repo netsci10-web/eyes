@@ -19,17 +19,17 @@ interface Step3Props {
   resetTrigger?: number;
 }
 
-// 9 Positions with anatomical muscle activation profiles
+// 9 Positions with accurate ophthalmic yoked muscle activation profiles (Left Eye Model & Conjugate Binocular Gaze)
 const POSITIONS = [
-  { x: 18, y: 18, label: "좌측 상단 (상직근/상사근)", mr: 30, lr: 80, sr: 90, ir: 10, so: 20, io: 70 },
-  { x: 82, y: 18, label: "우측 상단 (상직근/내직근)", mr: 85, lr: 20, sr: 90, ir: 10, so: 70, io: 20 },
-  { x: 18, y: 82, label: "좌측 하단 (하직근/외직근)", mr: 20, lr: 85, sr: 10, ir: 90, so: 80, io: 15 },
-  { x: 82, y: 82, label: "우측 하단 (하직근/내직근)", mr: 85, lr: 20, sr: 10, ir: 90, so: 20, io: 75 },
-  { x: 50, y: 50, label: "정중앙 (외안근 평형 상태)", mr: 45, lr: 45, sr: 45, ir: 45, so: 45, io: 45 },
-  { x: 18, y: 50, label: "좌측 수평 (외직근 활성)", mr: 15, lr: 95, sr: 40, ir: 40, so: 30, io: 30 },
-  { x: 82, y: 50, label: "우측 수평 (내직근 활성)", mr: 95, lr: 15, sr: 40, ir: 40, so: 30, io: 30 },
-  { x: 50, y: 18, label: "수직 상단 (양측 상직근 활성)", mr: 45, lr: 45, sr: 95, ir: 10, so: 30, io: 80 },
-  { x: 50, y: 82, label: "수직 하단 (양측 하직근 활성)", mr: 45, lr: 45, sr: 10, ir: 95, so: 80, io: 25 },
+  { x: 18, y: 18, label: "좌측 상단 (상직근 SR + 하사근 IO / 외직근 LR)", mr: 20, lr: 80, sr: 90, ir: 10, so: 15, io: 75 },
+  { x: 82, y: 18, label: "우측 상단 (내직근 MR + 하사근 IO / 상직근 SR)", mr: 85, lr: 20, sr: 70, ir: 10, so: 20, io: 85 },
+  { x: 18, y: 82, label: "좌측 하단 (하직근 IR + 상사근 SO / 외직근 LR)", mr: 20, lr: 85, sr: 10, ir: 90, so: 80, io: 15 },
+  { x: 82, y: 82, label: "우측 하단 (내직근 MR + 상사근 SO / 하직근 IR)", mr: 85, lr: 20, sr: 10, ir: 85, so: 85, io: 15 },
+  { x: 50, y: 50, label: "정중앙 (6대 외안근 기저 평형 상태)", mr: 45, lr: 45, sr: 45, ir: 45, so: 45, io: 45 },
+  { x: 18, y: 50, label: "좌측 수평 (외직근 LR 외전 활성 · CN VI)", mr: 15, lr: 95, sr: 40, ir: 40, so: 30, io: 30 },
+  { x: 82, y: 50, label: "우측 수평 (내직근 MR 내전 활성 · CN III)", mr: 95, lr: 15, sr: 40, ir: 40, so: 30, io: 30 },
+  { x: 50, y: 18, label: "수직 상단 (상직근 SR 거상 + 하사근 IO 협조)", mr: 45, lr: 45, sr: 95, ir: 10, so: 20, io: 85 },
+  { x: 50, y: 82, label: "수직 하단 (하직근 IR 하강 + 상사근 SO 협조)", mr: 45, lr: 45, sr: 10, ir: 95, so: 85, io: 15 },
 ];
 
 type ViewMode = "RADAR_TRACKER" | "MUSCLE_ANATOMY";
@@ -85,11 +85,17 @@ export default function Step3Saccades({
   const activePos = POSITIONS[currentPosIdx];
 
   // Speech triggers
+  const isInitialMountRef = useRef(true);
   useEffect(() => {
-    if (isActive && isPlaying) {
-      speak("세 번째 단계인 정밀 단속 안구 운동을 시작합니다. 머리를 고정하고, 안구를 지탱하는 여섯 개의 외안근으로만 신속하게 타겟을 추적하십시오.");
+    if (!isPlaying) {
+      isInitialMountRef.current = true;
+      return;
     }
-  }, [isActive]);
+    if (isInitialMountRef.current && secondsLeft === 60) {
+      isInitialMountRef.current = false;
+      speak("3단계: 단속 안구 운동을 시작합니다. 머리를 고정하고 눈동자만 빠르게 표적을 추적하세요.");
+    }
+  }, [isPlaying, secondsLeft]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -364,38 +370,61 @@ export default function Step3Saccades({
         {viewMode === "MUSCLE_ANATOMY" && (
           <div className="relative w-full h-full flex items-center justify-center px-4">
             <div className="grid grid-cols-12 gap-3 w-full items-center">
-              {/* Left: 3D-shaded Eye Globe with Muscles */}
+              {/* Left: 3D-shaded Eye Globe with All 6 Extraocular Muscles */}
               <div className="col-span-6 flex flex-col items-center">
                 <svg className="w-36 h-36" viewBox="0 0 160 160" fill="none">
-                  {/* Superior Rectus (상직근) */}
+                  {/* Superior Oblique Trochlea loop & tendon (상사근 & 활차 - CN IV) */}
+                  <path
+                    d="M 125,25 Q 115,10 88,14"
+                    stroke={activePos.so > 60 ? "#818CF8" : "#64748B"}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    fill="none"
+                    opacity={activePos.so / 100}
+                  />
+                  <circle cx="125" cy="25" r="3" fill="#A5B4FC" stroke="#4F46E5" strokeWidth="1" />
+                  <text x="110" y="8" fill="#818CF8" fontSize="7" fontWeight="bold">활차·상사근(SO)</text>
+
+                  {/* Inferior Oblique muscle under globe (하사근 - CN III) */}
+                  <path
+                    d="M 120,135 Q 90,148 40,125"
+                    stroke={activePos.io > 60 ? "#F43F5E" : "#64748B"}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    fill="none"
+                    opacity={activePos.io / 100}
+                  />
+                  <text x="5" y="145" fill="#F43F5E" fontSize="7" fontWeight="bold">하사근(IO)</text>
+
+                  {/* Superior Rectus (상직근 - CN III) */}
                   <rect
                     x="70"
-                    y="5"
+                    y="10"
                     width="20"
-                    height="35"
+                    height="32"
                     rx="4"
                     fill={activePos.sr > 70 ? "#EF4444" : "#94A3B8"}
                     stroke="#FCA5A5"
                     strokeWidth="1"
                     opacity={activePos.sr / 100}
                   />
-                  <text x="55" y="18" fill="#F87171" fontSize="8" fontWeight="bold">상직근 (SR)</text>
+                  <text x="52" y="24" fill="#F87171" fontSize="8" fontWeight="bold">상직근 (SR)</text>
 
-                  {/* Inferior Rectus (하직근) */}
+                  {/* Inferior Rectus (하직근 - CN III) */}
                   <rect
                     x="70"
-                    y="120"
+                    y="118"
                     width="20"
-                    height="35"
+                    height="32"
                     rx="4"
                     fill={activePos.ir > 70 ? "#EF4444" : "#94A3B8"}
                     stroke="#FCA5A5"
                     strokeWidth="1"
                     opacity={activePos.ir / 100}
                   />
-                  <text x="55" y="150" fill="#F87171" fontSize="8" fontWeight="bold">하직근 (IR)</text>
+                  <text x="52" y="148" fill="#F87171" fontSize="8" fontWeight="bold">하직근 (IR)</text>
 
-                  {/* Lateral Rectus (외직근) - 좌측 */}
+                  {/* Lateral Rectus (외직근 - CN VI) - 좌측 (좌안 귀쪽) */}
                   <rect
                     x="5"
                     y="70"
@@ -409,7 +438,7 @@ export default function Step3Saccades({
                   />
                   <text x="5" y="65" fill="#FB923C" fontSize="8" fontWeight="bold">외직근(LR)</text>
 
-                  {/* Medial Rectus (내직근) - 우측 */}
+                  {/* Medial Rectus (내직근 - CN III) - 우측 (좌안 코쪽) */}
                   <rect
                     x="120"
                     y="70"
@@ -421,10 +450,10 @@ export default function Step3Saccades({
                     strokeWidth="1"
                     opacity={activePos.mr / 100}
                   />
-                  <text x="120" y="65" fill="#FB923C" fontSize="8" fontWeight="bold">내직근(MR)</text>
+                  <text x="118" y="65" fill="#FB923C" fontSize="8" fontWeight="bold">내직근(MR)</text>
 
-                  {/* Sclera Globe (안구 구체) */}
-                  <circle cx="80" cy="80" r="45" fill="#F8FAFC" stroke="#64748B" strokeWidth="2" />
+                  {/* Sclera Globe (안구 구체 - 좌안 기준) */}
+                  <circle cx="80" cy="80" r="43" fill="#F8FAFC" stroke="#64748B" strokeWidth="2" />
                   
                   {/* Dynamic Pupil / Iris rotating based on target angle */}
                   <motion.g
@@ -439,22 +468,23 @@ export default function Step3Saccades({
                     <circle cx="76" cy="76" r="3" fill="#FFFFFF" opacity="0.8" />
                   </motion.g>
                 </svg>
+                <span className="text-[9px] text-slate-400 font-mono mt-1">좌안(Left Eye) 기준 6대 외안근 역학</span>
               </div>
 
-              {/* Right: Live EMG Muscle Activation Gauges */}
-              <div className="col-span-6 space-y-1.5 text-[10px]">
-                <div className="text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center space-x-1">
-                  <Activity className="w-3.5 h-3.5 text-orange-400" />
-                  <span>외안근 근전도(EMG) 활성치</span>
+              {/* Right: Live EMG 6 Muscle Activation Gauges */}
+              <div className="col-span-6 space-y-1 text-[9px]">
+                <div className="text-slate-300 font-bold uppercase tracking-wider mb-1 flex items-center space-x-1">
+                  <Activity className="w-3 h-3 text-orange-400" />
+                  <span>6대 외안근 근전도(EMG) 활성치</span>
                 </div>
 
                 {/* SR */}
                 <div className="space-y-0.5">
                   <div className="flex justify-between text-slate-300">
-                    <span>상직근 (Superior Rectus)</span>
+                    <span>상직근 (SR · CN III 동안신경)</span>
                     <span className="font-mono text-orange-400 font-bold">{activePos.sr}%</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-orange-500 transition-all duration-300" style={{ width: `${activePos.sr}%` }} />
                   </div>
                 </div>
@@ -462,10 +492,10 @@ export default function Step3Saccades({
                 {/* IR */}
                 <div className="space-y-0.5">
                   <div className="flex justify-between text-slate-300">
-                    <span>하직근 (Inferior Rectus)</span>
+                    <span>하직근 (IR · CN III 동안신경)</span>
                     <span className="font-mono text-orange-400 font-bold">{activePos.ir}%</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-orange-500 transition-all duration-300" style={{ width: `${activePos.ir}%` }} />
                   </div>
                 </div>
@@ -473,10 +503,10 @@ export default function Step3Saccades({
                 {/* LR */}
                 <div className="space-y-0.5">
                   <div className="flex justify-between text-slate-300">
-                    <span>외직근 (Lateral Rectus)</span>
+                    <span>외직근 (LR · CN VI 외전신경)</span>
                     <span className="font-mono text-amber-400 font-bold">{activePos.lr}%</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-amber-400 transition-all duration-300" style={{ width: `${activePos.lr}%` }} />
                   </div>
                 </div>
@@ -484,11 +514,33 @@ export default function Step3Saccades({
                 {/* MR */}
                 <div className="space-y-0.5">
                   <div className="flex justify-between text-slate-300">
-                    <span>내직근 (Medial Rectus)</span>
+                    <span>내직근 (MR · CN III 동안신경)</span>
                     <span className="font-mono text-amber-400 font-bold">{activePos.mr}%</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-amber-400 transition-all duration-300" style={{ width: `${activePos.mr}%` }} />
+                  </div>
+                </div>
+
+                {/* SO */}
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-indigo-300">
+                    <span>상사근 (SO · CN IV 활차신경/하강)</span>
+                    <span className="font-mono text-indigo-400 font-bold">{activePos.so}%</span>
+                  </div>
+                  <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${activePos.so}%` }} />
+                  </div>
+                </div>
+
+                {/* IO */}
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-rose-300">
+                    <span>하사근 (IO · CN III 동안신경/거상)</span>
+                    <span className="font-mono text-rose-400 font-bold">{activePos.io}%</span>
+                  </div>
+                  <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-rose-500 transition-all duration-300" style={{ width: `${activePos.io}%` }} />
                   </div>
                 </div>
               </div>

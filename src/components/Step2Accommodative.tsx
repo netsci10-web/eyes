@@ -72,18 +72,21 @@ export default function Step2Accommodative({
     });
   }, [isPlaying, secondsLeft, cyclesCompleted, focusState, cycleSeconds]);
 
-  // Trigger speech on step initiation
-  useEffect(() => {
-    if (isActive && isPlaying) {
-      speak(
-        "두 번째 단계인 조절 피로 완화 훈련을 시작합니다. 안구 내부 모양체 근육의 수축과 이완 광학 메커니즘을 확인하며 초점을 교대로 전환하십시오."
-      );
-    }
-  }, [isActive]);
-
   // Voice coaching on focus shift
+  const isInitialMountRef = useRef(true);
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying) {
+      isInitialMountRef.current = true;
+      return;
+    }
+
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      if (secondsLeft === 60) {
+        speak("2단계: 모양체 이완 훈련을 시작합니다. 가까운 글자에 초점 집중");
+        return;
+      }
+    }
 
     if (focusState === "NEAR") {
       speak("가까운 초점 집중");
@@ -492,10 +495,15 @@ export default function Step2Accommodative({
             </span>
           </div>
 
-          <div className="text-slate-400 font-medium hidden sm:flex items-center space-x-1">
-            <span>수정체 굴절력:</span>
+          <div className="text-slate-400 font-medium hidden sm:flex items-center space-x-2">
+            <span>조절 가입도:</span>
+            <span className={`font-bold font-mono ${focusState === "NEAR" ? "text-amber-400" : "text-teal-400"}`}>
+              {focusState === "NEAR" ? "+3.3 D (30cm 수축)" : "0.0 D (완전 이완)"}
+            </span>
+            <span className="text-slate-600">|</span>
+            <span className="text-slate-400">수정체 굴절력:</span>
             <span className="text-white font-bold font-mono">
-              {focusState === "NEAR" ? "+14.0 D (두꺼움)" : "+0.5 D (얇음)"}
+              {focusState === "NEAR" ? "+23.3 D" : "+20.0 D"}
             </span>
           </div>
         </div>

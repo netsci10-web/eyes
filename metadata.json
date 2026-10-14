@@ -1,0 +1,6 @@
+{
+  "name": "과학적 5단계 눈 운동 코치",
+  "description": "안과학 및 인지신경학계에서 입증된 과학적 근거 기반 5단계 눈 운동 프로그램",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

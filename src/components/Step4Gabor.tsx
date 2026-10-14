@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, RotateCcw, Brain, Check, ShieldAlert, Zap } from "lucide-react";
+import { Play, Pause, RotateCcw, Brain, Check, ShieldAlert, Zap, Info, Activity } from "lucide-react";
+import { motion } from "motion/react";
 
 interface Step4Props {
   isActive: boolean;
@@ -8,7 +9,7 @@ interface Step4Props {
   onScoreUpdate?: (score: number) => void;
 }
 
-// Orientations: 0 = Vertical, 45 = Diagonal Right (/), 90 = Horizontal (-), 135 = Diagonal Left (\)
+// 4 Orientations
 const ORIENTATIONS = [
   { angle: 0, label: "수직 (|)", icon: "│" },
   { angle: 45, label: "대각선 우 (/)", icon: "╱" },
@@ -16,16 +17,20 @@ const ORIENTATIONS = [
   { angle: 135, label: "대각선 좌 (\\)", icon: "╲" },
 ];
 
+type ViewMode = "GABOR_TEST" | "CORTEX_RECEPTIVE_FIELD";
+
 export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate }: Step4Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [currentAngleIndex, setCurrentAngleIndex] = useState(0);
-  const [contrast, setContrast] = useState(0.8); // 80% initial contrast
-  const [frequency, setFrequency] = useState(0.06); // typical spatial frequency
-  const [sigma, setSigma] = useState(25); // Gaussian size
+  const [contrast, setContrast] = useState(0.8);
+  const [frequency, setFrequency] = useState(0.055);
+  const [sigma, setSigma] = useState(28);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [bestContrast, setBestContrast] = useState(1.0);
+  const [viewMode, setViewMode] = useState<ViewMode>("GABOR_TEST");
+  const [actionPotentialHz, setActionPotentialHz] = useState(95);
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | null; text: string }>({
     type: null,
     text: "",
@@ -37,19 +42,19 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
   useEffect(() => {
     if (isActive && isPlaying) {
       speak(
-        "네 번째 단계인 대조 감도 극대화 훈련을 시작합니다. 화면 중앙의 흐릿한 줄무늬 패치 방향을 판별하여 아래 네 가지 버튼 중 올바른 무늬를 선택해 보세요."
+        "네 번째 단계인 대조 감도 극대화 훈련을 시작합니다. 화면 중앙의 흐릿한 줄무늬 패치 방향을 판별하여 시각 피질의 대조 인지 한계치를 높이십시오."
       );
     }
   }, [isActive]);
 
-  // Handle drawing when variables change
+  // Handle mathematical drawing
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const angle = ORIENTATIONS[currentAngleIndex].angle;
     drawGaborPatch(canvas, angle, frequency, contrast, sigma);
-  }, [currentAngleIndex, contrast, frequency, sigma, isPlaying]);
+  }, [currentAngleIndex, contrast, frequency, sigma, isPlaying, viewMode]);
 
   // Main countdown timer
   useEffect(() => {
@@ -60,9 +65,9 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
         setSecondsLeft((prev) => {
           if (prev <= 1) {
             setIsPlaying(false);
-            speak(`훈련 완료! 최소 인지 대조 장벽은 ${Math.round(bestContrast * 100)}%였습니다. 대뇌 시각령 인지 감도를 확장했습니다.`);
+            speak(`훈련 완료! 최소 인지 대조 한계치는 ${Math.round(bestContrast * 100)}%였습니다. 대뇌 일차 시각 피질의 해상도를 확장했습니다.`);
             if (onScoreUpdate) {
-              onScoreUpdate(Math.round((1 - bestContrast) * 100)); // Higher score for lower contrast detected
+              onScoreUpdate(Math.round((1 - bestContrast) * 100));
             }
             onComplete();
             return 0;
@@ -79,7 +84,7 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
     };
   }, [isPlaying, secondsLeft, bestContrast, onComplete]);
 
-  // Mathematical Gabor Patch rendering
+  // True Psychophysics Gabor Grating Formula
   const drawGaborPatch = (
     canvas: HTMLCanvasElement,
     orientationAngle: number,
@@ -101,11 +106,9 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        // Center-relative coordinates
         const dx = x - cx;
         const dy = y - cy;
 
-        // Rotate coordinate system by theta
         const xPrime = dx * Math.cos(theta) + dy * Math.sin(theta);
         const yPrime = -dx * Math.sin(theta) + dy * Math.cos(theta);
 
@@ -115,59 +118,54 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
         // Sinusoidal grating
         const grating = Math.cos(2 * Math.PI * freq * xPrime);
 
-        // Gray background (128) + amplitude modulations
-        // Contrast scales from 0.0 to 1.0
+        // Contrast scaled
         const val = 128 + 127 * contr * grating * gaussian;
-
-        // Clamp to 0-255 range
         const clampedVal = Math.max(0, Math.min(255, val));
 
         const index = (y * width + x) * 4;
-        data[index] = clampedVal; // R
-        data[index + 1] = clampedVal; // G
-        data[index + 2] = clampedVal; // B
-        data[index + 3] = 255; // Alpha opaque
+        data[index] = clampedVal;
+        data[index + 1] = clampedVal;
+        data[index + 2] = clampedVal;
+        data[index + 3] = 255;
       }
     }
     ctx.putImageData(imageData, 0, 0);
 
-    // Draw visual focus ring around the canvas for eyes to settle
-    ctx.strokeStyle = "rgba(99, 102, 241, 0.2)";
-    ctx.lineWidth = 2;
+    // Subtle calibration reticle around border
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+    ctx.lineWidth = 1;
     ctx.strokeRect(1, 1, width - 2, height - 2);
   };
 
   const generateNewPatch = () => {
     const nextIndex = Math.floor(Math.random() * ORIENTATIONS.length);
     setCurrentAngleIndex(nextIndex);
+    setActionPotentialHz(Math.floor(85 + Math.random() * 40));
   };
 
   const handleSelection = (angleIndex: number) => {
     if (!isPlaying) return;
 
     if (angleIndex === currentAngleIndex) {
-      // Success! Correct orientation.
       setScore((s) => s + 10);
       setStreak((s) => s + 1);
 
-      // Decreasing contrast makes it harder (perceptual learning)
-      const nextContrast = Math.max(0.01, contrast * 0.75); // Decrease contrast by 25% each time
+      const nextContrast = Math.max(0.02, contrast * 0.72);
       setContrast(nextContrast);
       if (nextContrast < bestContrast) {
         setBestContrast(nextContrast);
       }
 
-      setFeedback({ type: "success", text: "정답! 대비 감도가 강해지고 있습니다." });
+      setFeedback({ type: "success", text: "정답! 대뇌 시각 피질의 대조 감도가 확장되었습니다." });
       speak("정답입니다");
 
       setTimeout(() => {
         setFeedback({ type: null, text: "" });
         generateNewPatch();
-      }, 800);
+      }, 700);
     } else {
-      // Mistake. Let's make it slightly easier to guide visual alignment
       setStreak(0);
-      const nextContrast = Math.min(1.0, contrast * 1.3); // Increase contrast by 30% on mistake
+      const nextContrast = Math.min(1.0, contrast * 1.35);
       setContrast(nextContrast);
 
       setFeedback({
@@ -179,7 +177,7 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
       setTimeout(() => {
         setFeedback({ type: null, text: "" });
         generateNewPatch();
-      }, 1500);
+      }, 1400);
     }
   };
 
@@ -206,82 +204,199 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
     setCurrentAngleIndex(0);
   };
 
+  const activeOrientation = ORIENTATIONS[currentAngleIndex];
+
   return (
-    <div id="step-4-container" className="flex flex-col items-center space-y-6 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+    <div id="step-4-container" className="flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
       {/* Header */}
-      <div className="text-center space-y-2">
-        <h3 className="text-lg font-bold text-slate-800 flex items-center justify-center space-x-2" id="step4-header-title">
-          <Brain className="w-5 h-5 text-indigo-500" />
-          <span>4단계: 대조 감도 극대화 훈련 (Gabor Contrast)</span>
-        </h3>
-        <p className="text-sm text-slate-500 max-w-lg">
-          뇌의 <em>일차 시각 피질(V1, Visual Cortex)</em>의 대비 감도(Contrast Sensitivity) 가소성을 자극합니다. 줄무늬가 연해질수록 해상도가 높아집니다.
+      <div className="text-center space-y-1.5 w-full">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+            <h3 className="text-base font-bold text-slate-800" id="step4-header-title">
+              4단계: 대조 감도 극대화 훈련 (Gabor Contrast)
+            </h3>
+          </div>
+
+          {/* Mode Switcher */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+            <button
+              onClick={() => setViewMode("GABOR_TEST")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                viewMode === "GABOR_TEST"
+                  ? "bg-white text-slate-900 shadow-xs font-semibold"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              가보 패치 판별
+            </button>
+            <button
+              onClick={() => setViewMode("CORTEX_RECEPTIVE_FIELD")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                viewMode === "CORTEX_RECEPTIVE_FIELD"
+                  ? "bg-white text-slate-900 shadow-xs font-semibold"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              대뇌 V1 수용장 모델
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 text-left">
+          눈의 안축장을 바꾸지 않고도, 뇌의 <em>일차 시각 피질(V1)</em>의 대비 감도(Contrast Sensitivity) 가소성을 자극하여 실질 해상도를 높입니다.
         </p>
       </div>
 
-      {/* Metrics Dashboard */}
-      <div className="grid grid-cols-3 gap-2 w-full max-w-sm" id="gabor-metrics">
-        <div className="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
-          <div className="text-[10px] text-slate-400 font-semibold">현재 대비 장벽</div>
-          <div className="text-sm font-mono font-bold text-slate-700">
-            {Math.round(contrast * 100)}%
-          </div>
-        </div>
-        <div className="bg-indigo-50/50 p-2 rounded-xl text-center border border-indigo-100/50">
-          <div className="text-[10px] text-indigo-600 font-semibold">최소 인지 대비</div>
-          <div className="text-sm font-mono font-bold text-indigo-700">
-            {bestContrast === 1.0 ? "-" : `${Math.round(bestContrast * 100)}%`}
-          </div>
-        </div>
-        <div className="bg-emerald-50/50 p-2 rounded-xl text-center border border-emerald-100/50">
-          <div className="text-[10px] text-emerald-600 font-semibold">시각 피질 점수</div>
-          <div className="text-sm font-mono font-bold text-emerald-700">
-            {score}점
-          </div>
-        </div>
-      </div>
+      {/* Main Simulation Viewport */}
+      <div
+        className="relative w-full h-72 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none"
+        id="step4-visual-canvas"
+      >
+        {/* VIEW A: GABOR PSYCHOPHYSICS TEST */}
+        {viewMode === "GABOR_TEST" && (
+          <div className="relative flex flex-col items-center justify-center w-full h-full">
+            {/* Ambient circular aperture glow */}
+            <div className="absolute w-48 h-48 rounded-full bg-slate-800/50 border border-slate-700/80 shadow-2xl flex items-center justify-center pointer-events-none" />
 
-      {/* Canvas workspace for Gabor Pattern */}
-      <div className="relative flex flex-col items-center" id="gabor-canvas-container">
-        <canvas
-          ref={canvasRef}
-          width={180}
-          height={180}
-          className="bg-[rgb(128,128,128)] rounded-2xl shadow-inner border border-slate-300 select-none cursor-default transition-all"
-        />
+            <canvas
+              ref={canvasRef}
+              width={170}
+              height={170}
+              className="rounded-full shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-slate-600 select-none cursor-default"
+            />
 
-        {/* Real-time Feedback Toast Overlay */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 text-center pointer-events-none">
-          {feedback.type === "success" && (
-            <div className="bg-emerald-500 text-white font-bold text-xs px-3 py-1.5 rounded-full shadow-lg flex items-center justify-center space-x-1 border border-emerald-400 animate-bounce">
-              <Check className="w-3.5 h-3.5" />
-              <span>{feedback.text}</span>
+            {/* Central micro-fixation dot */}
+            <div className="absolute w-1.5 h-1.5 rounded-full bg-red-500 pointer-events-none opacity-60" />
+
+            {/* Real-time Feedback Toast Overlay */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 text-center pointer-events-none z-20">
+              {feedback.type === "success" && (
+                <div className="bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-2xl flex items-center justify-center space-x-1.5 border border-emerald-400 animate-bounce">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{feedback.text}</span>
+                </div>
+              )}
+              {feedback.type === "error" && (
+                <div className="bg-rose-600 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl shadow-2xl flex items-center justify-center space-x-1.5 border border-rose-400">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  <span>{feedback.text}</span>
+                </div>
+              )}
             </div>
-          )}
-          {feedback.type === "error" && (
-            <div className="bg-rose-500 text-white font-semibold text-xs px-3 py-2 rounded-lg shadow-lg flex items-center justify-center space-x-1 border border-rose-400">
-              <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-              <span>{feedback.text}</span>
-            </div>
-          )}
-        </div>
 
-        {/* Tutorial Overlay */}
-        {!isPlaying && secondsLeft === 60 && (
-          <div className="absolute inset-0 bg-slate-900/90 rounded-2xl flex flex-col items-center justify-center text-center p-4 space-y-2">
-            <Zap className="w-7 h-7 text-amber-400 animate-pulse" />
-            <p className="text-xs text-white font-semibold">인지신경학적 지능형 시력 강화</p>
-            <p className="text-[10px] text-slate-300 max-w-[160px] leading-relaxed">
-              화면에 나타나는 <strong>줄무늬 패턴의 방향</strong>을 관찰하고 하단 버튼을 클릭하여 시각 피질 대비 민감성을 늘리십시오!
-            </p>
+            {/* Tutorial Overlay */}
+            {!isPlaying && secondsLeft === 60 && (
+              <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center text-center p-5 space-y-2 z-10">
+                <Zap className="w-8 h-8 text-amber-400 animate-pulse" />
+                <h4 className="text-xs font-bold text-white">인지신경학적 지능형 시력 강화</h4>
+                <p className="text-[11px] text-slate-300 max-w-xs leading-relaxed">
+                  중앙 패치 속 <strong>흐릿한 줄무늬의 기울기(각도)</strong>를 판별하여 하단 버튼을 클릭하세요. 맞출수록 패턴이 점점 옅어집니다!
+                </p>
+              </div>
+            )}
           </div>
         )}
+
+        {/* VIEW B: HUBEL & WIESEL V1 CORTEX RECEPTIVE FIELD SIMULATION */}
+        {viewMode === "CORTEX_RECEPTIVE_FIELD" && (
+          <div className="relative w-full h-full flex items-center justify-center px-4">
+            <div className="grid grid-cols-12 gap-3 w-full items-center">
+              {/* Left: Receptive Field 2D Map */}
+              <div className="col-span-6 flex flex-col items-center">
+                <div className="text-[9px] font-mono text-slate-400 mb-1">
+                  V1 단순세포(Simple Cell) 수용장
+                </div>
+
+                <div className="relative w-32 h-32 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center overflow-hidden">
+                  {/* Rotating Receptive Field Bar matching current Gabor angle */}
+                  <motion.div
+                    animate={{ rotate: activeOrientation.angle }}
+                    transition={{ duration: 0.4 }}
+                    className="relative w-28 h-28 flex items-center justify-center"
+                  >
+                    {/* Inhibitory surround (-) */}
+                    <div className="absolute inset-0 bg-blue-950/60 rounded-xl" />
+                    
+                    {/* Left flank (-) */}
+                    <div className="absolute left-3 inset-y-2 w-5 bg-blue-600/40 border-r border-blue-400/50 flex items-center justify-center text-[10px] text-blue-200 font-bold">
+                      -
+                    </div>
+
+                    {/* Excitatory center (+) */}
+                    <div className="absolute inset-y-2 w-8 bg-amber-500/80 border-x border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.5)] flex items-center justify-center text-[11px] text-white font-extrabold">
+                      +
+                    </div>
+
+                    {/* Right flank (-) */}
+                    <div className="absolute right-3 inset-y-2 w-5 bg-blue-600/40 border-l border-blue-400/50 flex items-center justify-center text-[10px] text-blue-200 font-bold">
+                      -
+                    </div>
+                  </motion.div>
+                </div>
+
+                <div className="text-[9px] text-amber-400 font-semibold mt-1">
+                  선택 각도: {activeOrientation.angle}° ({activeOrientation.label})
+                </div>
+              </div>
+
+              {/* Right: Action Potential Oscilloscope Spike Train */}
+              <div className="col-span-6 space-y-2 text-[10px]">
+                <div className="text-slate-300 font-bold flex items-center space-x-1">
+                  <Activity className="w-3.5 h-3.5 text-rose-400" />
+                  <span>대뇌 시각 신경 발화율(Spikes)</span>
+                </div>
+
+                {/* Oscilloscope canvas representation */}
+                <div className="h-16 bg-slate-950 rounded-xl border border-slate-800 p-2 relative flex items-center overflow-hidden">
+                  <svg className="w-full h-full" viewBox="0 0 140 40" fill="none">
+                    {/* Baseline */}
+                    <line x1="0" y1="20" x2="140" y2="20" stroke="#334155" strokeWidth="1" strokeDasharray="2,2" />
+                    {/* Action Potential Spikes */}
+                    <motion.path
+                      d="M 5,20 L 15,20 L 18,3 L 21,35 L 24,20 L 40,20 L 43,5 L 46,33 L 49,20 L 65,20 L 68,2 L 71,36 L 74,20 L 90,20 L 93,4 L 96,34 L 99,20 L 115,20 L 118,3 L 121,35 L 124,20 L 135,20"
+                      stroke="#22C55E"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      fill="none"
+                      animate={{ x: [-10, 0] }}
+                      transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }}
+                    />
+                  </svg>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-400 text-[9px]">
+                    <span>방향 선택성(Tuning SNR):</span>
+                    <span className="font-mono text-emerald-400 font-bold">{actionPotentialHz} Hz</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400 text-[9px]">
+                    <span>노벨생리의학상:</span>
+                    <span className="text-slate-300">휴블-비셀(Hubel & Wiesel)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Real-time Telemetry Dashboard Bar */}
+        <div className="absolute bottom-3 inset-x-4 flex items-center justify-between bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-800 text-[11px]">
+          <div className="flex items-center space-x-2">
+            <span className="text-slate-400">현재 대비 장벽:</span>
+            <span className="text-amber-400 font-mono font-bold">{Math.round(contrast * 100)}%</span>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <span className="text-slate-400">최소 인지 한계: <strong className="text-white font-mono">{bestContrast === 1.0 ? "-" : `${Math.round(bestContrast * 100)}%`}</strong></span>
+            <span className="text-slate-400">시각 점수: <strong className="text-emerald-400 font-mono">{score}점</strong></span>
+          </div>
+        </div>
       </div>
 
-      {/* Selection Control Buttons */}
-      <div className="w-full max-w-sm space-y-2">
-        <div className="text-center text-xs font-bold text-slate-500 uppercase tracking-wider">
-          {isPlaying ? "관찰되는 무늬의 방향을 클릭하세요" : "준비 후 아래 시작을 누르세요"}
+      {/* Orientation Selection Buttons */}
+      <div className="w-full max-w-sm space-y-1.5">
+        <div className="text-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+          {isPlaying ? "관찰되는 줄무늬의 방향을 클릭하세요" : "준비 후 아래 훈련 시작을 누르세요"}
         </div>
         <div className="grid grid-cols-4 gap-2" id="gabor-button-grid">
           {ORIENTATIONS.map((orient, idx) => (
@@ -289,23 +404,23 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
               key={idx}
               disabled={!isPlaying}
               onClick={() => handleSelection(idx)}
-              className={`flex flex-col items-center justify-center p-3 rounded-xl border text-sm font-semibold transition-all ${
+              className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-sm font-semibold transition-all ${
                 isPlaying
-                  ? "bg-slate-50 hover:bg-indigo-50 border-slate-200 text-slate-700 active:scale-95 cursor-pointer shadow-xs"
+                  ? "bg-slate-50 hover:bg-rose-50 hover:border-rose-300 border-slate-200 text-slate-800 active:scale-95 cursor-pointer shadow-xs"
                   : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
               }`}
             >
-              <span className="text-2xl font-bold font-sans h-8 flex items-center">{orient.icon}</span>
-              <span className="text-[10px] mt-1 text-slate-500 font-medium whitespace-nowrap">{orient.label}</span>
+              <span className="text-2xl font-bold font-sans h-7 flex items-center">{orient.icon}</span>
+              <span className="text-[10px] mt-0.5 text-slate-500 font-medium whitespace-nowrap">{orient.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Play actions & total countdown */}
-      <div className="flex items-center space-x-6 w-full max-w-sm justify-between">
+      {/* Action Controls */}
+      <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
         <div className="text-left">
-          <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">훈련 종료 시간</div>
+          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 훈련 시간</div>
           <div className="text-2xl font-mono font-bold text-slate-800">
             {Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, "0")}
           </div>
@@ -315,7 +430,7 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
           <button
             onClick={togglePlay}
             id="step4-play-btn"
-            className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all ${
+            className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
               isPlaying
                 ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
                 : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
@@ -337,7 +452,7 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
           <button
             onClick={resetExercise}
             id="step4-reset-btn"
-            className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200"
+            className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
             title="다시 시작"
           >
             <RotateCcw className="w-4 h-4" />
@@ -345,11 +460,11 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
         </div>
       </div>
 
-      {/* Guide details */}
-      <div className="w-full max-w-sm border border-slate-100 rounded-xl p-4 bg-slate-50/50 space-y-1">
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">가이드</h4>
-        <p className="text-[11px] text-slate-600 leading-relaxed">
-          연속으로 정답을 맞출수록 줄무늬의 진함(대비율)이 **극단적으로 약해지며** 시각 피질의 인지 한계치(Contrast Threshold)를 극대화합니다. 틀리면 패치가 잘 보이기 위해 진해집니다.
+      {/* Scientific context */}
+      <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
+        <Info className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+        <p className="leading-relaxed">
+          <strong>뇌과학 팩트:</strong> 가보 패치(Gabor Patch)는 대뇌 시각 피질의 단순세포 수용장과 수학적으로 완벽히 일치하는 자극원입니다. UC 버클리 및 이스라엘 인지 연구에 따르면, 미세 대비 판별 훈련을 거치면 뇌가 흐릿한 시각 입력 신호 속에서 잡음(Noise)을 걸러내는 뇌 가소성(Neuroplasticity)이 촉진되어 실제 시각 선명도가 눈에 띄게 개선됩니다.
         </p>
       </div>
     </div>

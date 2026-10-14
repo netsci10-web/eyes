@@ -28,6 +28,7 @@ import Step3Saccades from "./components/Step3Saccades";
 import Step4Gabor from "./components/Step4Gabor";
 import Step5FarFocus from "./components/Step5FarFocus";
 import ScienceGuide from "./components/ScienceGuide";
+import AnatomyModal from "./components/AnatomyModal";
 
 type StepId = 1 | 2 | 3 | 4 | 5;
 
@@ -47,6 +48,9 @@ export default function App() {
     activeSubtitle,
     rate,
     setRate,
+    isAiVoice,
+    setIsAiVoice,
+    isLoadingAiAudio,
   } = useTTS();
 
   const [activeStep, setActiveStep] = useState<StepId>(1);
@@ -56,6 +60,7 @@ export default function App() {
   const [streakDays, setStreakDays] = useState(0);
   const [history, setHistory] = useState<TrainingHistory[]>([]);
   const [showFaq, setShowFaq] = useState(false);
+  const [isAnatomyModalOpen, setIsAnatomyModalOpen] = useState(false);
 
   // Load history and streak from localStorage on mount
   useEffect(() => {
@@ -226,6 +231,17 @@ export default function App() {
 
           {/* Master Full-Session Control at the absolute top (최상단 배치) */}
           <div className="flex items-center space-x-2" id="primary-top-controls">
+            {/* Anatomy 3D Modal Trigger */}
+            <button
+              onClick={() => setIsAnatomyModalOpen(true)}
+              id="top-anatomy-modal-btn"
+              className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold text-xs px-3.5 py-2 rounded-xl border border-slate-700 shadow-sm hover:shadow transition-all flex items-center space-x-1.5 active:scale-95 cursor-pointer"
+              title="눈의 구조와 5단계 작용 원리 3D 해부도 보기"
+            >
+              <Eye className="w-3.5 h-3.5 text-amber-400" />
+              <span>눈 구조 & 원리 3D 도감</span>
+            </button>
+
             <button
               onClick={startFullSession}
               id="master-start-btn"
@@ -233,6 +249,25 @@ export default function App() {
             >
               <Play className="w-3.5 h-3.5 fill-current" />
               <span>통합 5단계 풀 코스 시작 (권장)</span>
+            </button>
+
+            {/* AI Natural Voice Toggle */}
+            <button
+              onClick={() => {
+                const nextMode = !isAiVoice;
+                setIsAiVoice(nextMode);
+                speak(nextMode ? "고음질 AI 자연어 음성 코치가 켜졌습니다." : "브라우저 기본 음성으로 전환되었습니다.");
+              }}
+              id="top-ai-voice-toggle"
+              className={`p-2 rounded-xl border text-xs font-semibold transition-all flex items-center space-x-1 cursor-pointer ${
+                isAiVoice
+                  ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+              }`}
+              title={isAiVoice ? "AI 고음질 자연어 음성 활성화됨" : "브라우저 기본 음성 사용 중"}
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isAiVoice ? "text-indigo-600" : "text-slate-400"}`} />
+              <span className="hidden md:inline">{isAiVoice ? "AI 고음질 음성" : "기본 음성"}</span>
             </button>
 
             {/* TTS Mute Toggle */}
@@ -323,7 +358,7 @@ export default function App() {
             </div>
 
             <div className="space-y-2">
-              {(Object.keys(stepDetails) as unknown as StepId[]).map((id) => {
+              {([1, 2, 3, 4, 5] as const).map((id: StepId) => {
                 const isActive = activeStep === id;
                 const isCompleted = completedSteps.includes(id);
                 const details = stepDetails[id];
@@ -474,6 +509,14 @@ export default function App() {
                 <span className="text-sm font-bold text-slate-700">
                   {stepDetails[activeStep].name}
                 </span>
+                <button
+                  onClick={() => setIsAnatomyModalOpen(true)}
+                  className="hidden sm:flex items-center space-x-1 text-[11px] bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer ml-1"
+                  title="이 단계의 3D 인체 해부학적 작용 원리 보기"
+                >
+                  <Eye className="w-3 h-3 text-indigo-500" />
+                  <span>3D 해부학 원리</span>
+                </button>
               </div>
 
               {/* Individual step jumper */}
@@ -604,6 +647,13 @@ export default function App() {
       <section className="px-4 mt-8">
         <ScienceGuide />
       </section>
+
+      {/* 3D Anatomy & Exercise Mechanism Modal Popup */}
+      <AnatomyModal
+        isOpen={isAnatomyModalOpen}
+        onClose={() => setIsAnatomyModalOpen(false)}
+        initialStep={activeStep}
+      />
     </div>
   );
 }

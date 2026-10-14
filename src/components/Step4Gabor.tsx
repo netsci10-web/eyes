@@ -7,19 +7,40 @@ interface Step4Props {
   onComplete: () => void;
   speak: (text: string) => void;
   onScoreUpdate?: (score: number) => void;
+  isFullscreen?: boolean;
+  onRunningChange?: (running: boolean) => void;
+  onStateUpdate?: (state: {
+    isPlaying: boolean;
+    secondsLeft: number;
+    totalSeconds: number;
+    phaseInfo?: string;
+    extraInfo?: string;
+  }) => void;
+  playTrigger?: number;
+  resetTrigger?: number;
 }
 
 // 4 Orientations
 const ORIENTATIONS = [
-  { angle: 0, label: "수직 (|)", icon: "│" },
-  { angle: 45, label: "대각선 우 (/)", icon: "╱" },
-  { angle: 90, label: "수평 (—)", icon: "─" },
-  { angle: 135, label: "대각선 좌 (\\)", icon: "╲" },
+  { angle: 0, label: "수직 (|)", icon: "│", key: "ArrowUp" },
+  { angle: 45, label: "대각선 우 (/)", icon: "╱", key: "ArrowRight" },
+  { angle: 90, label: "수평 (—)", icon: "─", key: "ArrowDown" },
+  { angle: 135, label: "대각선 좌 (\\)", icon: "╲", key: "ArrowLeft" },
 ];
 
 type ViewMode = "GABOR_TEST" | "CORTEX_RECEPTIVE_FIELD";
 
-export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate }: Step4Props) {
+export default function Step4Gabor({
+  isActive,
+  onComplete,
+  speak,
+  onScoreUpdate,
+  isFullscreen = false,
+  onRunningChange,
+  onStateUpdate,
+  playTrigger,
+  resetTrigger,
+}: Step4Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [currentAngleIndex, setCurrentAngleIndex] = useState(0);
@@ -37,6 +58,48 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
   });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const prevPlayTriggerRef = useRef(playTrigger);
+  const prevResetTriggerRef = useRef(resetTrigger);
+
+  // Sync external triggers
+  useEffect(() => {
+    if (playTrigger !== undefined && playTrigger !== prevPlayTriggerRef.current) {
+      prevPlayTriggerRef.current = playTrigger;
+      togglePlay();
+    }
+  }, [playTrigger]);
+
+  useEffect(() => {
+    if (resetTrigger !== undefined && resetTrigger !== prevResetTriggerRef.current) {
+      prevResetTriggerRef.current = resetTrigger;
+      resetExercise();
+    }
+  }, [resetTrigger]);
+
+  // Keyboard shortcut listener for Gabor orientations
+  useEffect(() => {
+    if (!isPlaying) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowUp" || e.key === "1") handleSelection(0);
+      else if (e.key === "ArrowRight" || e.key === "2") handleSelection(1);
+      else if (e.key === "ArrowDown" || e.key === "3") handleSelection(2);
+      else if (e.key === "ArrowLeft" || e.key === "4") handleSelection(3);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isPlaying, currentAngleIndex, contrast, bestContrast]);
+
+  // Notify parent of state changes
+  useEffect(() => {
+    onRunningChange?.(isPlaying);
+    onStateUpdate?.({
+      isPlaying,
+      secondsLeft,
+      totalSeconds: 60,
+      phaseInfo: `시각 인지 점수: ${score}점 (대비 한계 ${Math.round(contrast * 100)}%)`,
+      extraInfo: streak > 1 ? `${streak}연속 정답!` : "",
+    });
+  }, [isPlaying, secondsLeft, score, contrast, streak]);
 
   // Trigger speech
   useEffect(() => {
@@ -207,49 +270,88 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
   const activeOrientation = ORIENTATIONS[currentAngleIndex];
 
   return (
-    <div id="step-4-container" className="flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+    <div
+      id="step-4-container"
+      className={
+        isFullscreen
+          ? "w-full h-full flex flex-col items-center justify-center bg-transparent border-0 rounded-none shadow-none p-2 sm:p-4 text-white"
+          : "flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm"
+      }
+    >
       {/* Header */}
-      <div className="text-center space-y-1.5 w-full">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
-            <h3 className="text-base font-bold text-slate-800" id="step4-header-title">
-              4단계: 대조 감도 극대화 훈련 (Gabor Contrast)
-            </h3>
+      {!isFullscreen ? (
+        <div className="text-center space-y-1.5 w-full">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+              <h3 className="text-base font-bold text-slate-800" id="step4-header-title">
+                4단계: 대조 감도 극대화 훈련 (Gabor Contrast)
+              </h3>
+            </div>
+
+            {/* Mode Switcher */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                onClick={() => setViewMode("GABOR_TEST")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "GABOR_TEST"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                가보 패치 판별
+              </button>
+              <button
+                onClick={() => setViewMode("CORTEX_RECEPTIVE_FIELD")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "CORTEX_RECEPTIVE_FIELD"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                대뇌 V1 수용장 모델
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 text-left">
+            눈의 안축장을 바꾸지 않고도, 뇌의 <em>일차 시각 피질(V1)</em>의 대비 감도(Contrast Sensitivity) 가소성을 자극하여 실질 해상도를 높입니다.
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between w-full max-w-4xl px-2 mb-2 text-xs">
+          <div className="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
+            <Brain className="w-4 h-4 text-rose-400" />
+            <span className="text-slate-300 font-semibold">
+              대뇌 V1 대비 판별 — 줄무늬 방향을 클릭하거나 키보드 방향키(↑, →, ↓, ←)를 누르세요
+            </span>
           </div>
 
-          {/* Mode Switcher */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+          <div className="flex items-center bg-slate-900/80 p-0.5 rounded-lg border border-slate-800 text-xs">
             <button
               onClick={() => setViewMode("GABOR_TEST")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "GABOR_TEST"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                viewMode === "GABOR_TEST" ? "bg-rose-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              가보 패치 판별
+              가보 패치
             </button>
             <button
               onClick={() => setViewMode("CORTEX_RECEPTIVE_FIELD")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "CORTEX_RECEPTIVE_FIELD"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                viewMode === "CORTEX_RECEPTIVE_FIELD" ? "bg-rose-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              대뇌 V1 수용장 모델
+              수용장 모델
             </button>
           </div>
         </div>
-        <p className="text-xs text-slate-500 text-left">
-          눈의 안축장을 바꾸지 않고도, 뇌의 <em>일차 시각 피질(V1)</em>의 대비 감도(Contrast Sensitivity) 가소성을 자극하여 실질 해상도를 높입니다.
-        </p>
-      </div>
+      )}
 
       {/* Main Simulation Viewport */}
       <div
-        className="relative w-full h-72 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none"
+        className={`relative w-full ${
+          isFullscreen ? "h-[calc(100vh-230px)] min-h-[400px]" : "h-72"
+        } bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none`}
         id="step4-visual-canvas"
       >
         {/* VIEW A: GABOR PSYCHOPHYSICS TEST */}
@@ -394,79 +496,91 @@ export default function Step4Gabor({ isActive, onComplete, speak, onScoreUpdate 
       </div>
 
       {/* Orientation Selection Buttons */}
-      <div className="w-full max-w-sm space-y-1.5">
-        <div className="text-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-          {isPlaying ? "관찰되는 줄무늬의 방향을 클릭하세요" : "준비 후 아래 훈련 시작을 누르세요"}
+      <div className={`w-full max-w-md ${isFullscreen ? "mt-2" : "space-y-1.5"}`}>
+        <div className={`text-center text-[11px] font-bold ${isFullscreen ? "text-slate-400" : "text-slate-500"} uppercase tracking-wider mb-1.5`}>
+          {isPlaying
+            ? isFullscreen
+              ? "관찰되는 줄무늬 방향을 클릭하거나 단축키(↑, →, ↓, ←)를 누르세요"
+              : "관찰되는 줄무늬의 방향을 클릭하세요"
+            : "준비 후 아래 훈련 시작을 누르세요"}
         </div>
-        <div className="grid grid-cols-4 gap-2" id="gabor-button-grid">
+        <div className="grid grid-cols-4 gap-2.5" id="gabor-button-grid">
           {ORIENTATIONS.map((orient, idx) => (
             <button
               key={idx}
               disabled={!isPlaying}
               onClick={() => handleSelection(idx)}
-              className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-sm font-semibold transition-all ${
+              className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-sm font-semibold transition-all ${
                 isPlaying
-                  ? "bg-slate-50 hover:bg-rose-50 hover:border-rose-300 border-slate-200 text-slate-800 active:scale-95 cursor-pointer shadow-xs"
+                  ? isFullscreen
+                    ? "bg-slate-900/90 hover:bg-rose-950/80 hover:border-rose-500 border-slate-700 text-white shadow-lg active:scale-95 cursor-pointer"
+                    : "bg-slate-50 hover:bg-rose-50 hover:border-rose-300 border-slate-200 text-slate-800 active:scale-95 cursor-pointer shadow-xs"
+                  : isFullscreen
+                  ? "bg-slate-900/40 border-slate-800 text-slate-600 cursor-not-allowed"
                   : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
               }`}
             >
               <span className="text-2xl font-bold font-sans h-7 flex items-center">{orient.icon}</span>
-              <span className="text-[10px] mt-0.5 text-slate-500 font-medium whitespace-nowrap">{orient.label}</span>
+              <span className="text-[10px] mt-0.5 text-slate-400 font-medium whitespace-nowrap">{orient.label}</span>
+              {isFullscreen && <span className="text-[9px] font-mono text-rose-400 font-bold opacity-80">[{orient.key.replace("Arrow", "")}]</span>}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Action Controls */}
-      <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
-        <div className="text-left">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 훈련 시간</div>
-          <div className="text-2xl font-mono font-bold text-slate-800">
-            {Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, "0")}
+      {/* Action Controls & Scientific Context (only in standard view) */}
+      {!isFullscreen && (
+        <>
+          <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
+            <div className="text-left">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 훈련 시간</div>
+              <div className="text-2xl font-mono font-bold text-slate-800">
+                {Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, "0")}
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={togglePlay}
+                id="step4-play-btn"
+                className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
+                  isPlaying
+                    ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
+                }`}
+              >
+                {isPlaying ? (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    <span>일시정지</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    <span>훈련 시작</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={resetExercise}
+                id="step4-reset-btn"
+                className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
+                title="다시 시작"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={togglePlay}
-            id="step4-play-btn"
-            className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
-              isPlaying
-                ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
-            }`}
-          >
-            {isPlaying ? (
-              <>
-                <Pause className="w-4 h-4" />
-                <span>일시정지</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>훈련 시작</span>
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={resetExercise}
-            id="step4-reset-btn"
-            className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
-            title="다시 시작"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Scientific context */}
-      <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
-        <Info className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
-          <strong>뇌과학 팩트:</strong> 가보 패치(Gabor Patch)는 대뇌 시각 피질의 단순세포 수용장과 수학적으로 완벽히 일치하는 자극원입니다. UC 버클리 및 이스라엘 인지 연구에 따르면, 미세 대비 판별 훈련을 거치면 뇌가 흐릿한 시각 입력 신호 속에서 잡음(Noise)을 걸러내는 뇌 가소성(Neuroplasticity)이 촉진되어 실제 시각 선명도가 눈에 띄게 개선됩니다.
-        </p>
-      </div>
+          <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
+            <Info className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              <strong>뇌과학 팩트:</strong> 가보 패치(Gabor Patch)는 대뇌 시각 피질의 단순세포 수용장과 수학적으로 완벽히 일치하는 자극원입니다. UC 버클리 및 이스라엘 인지 연구에 따르면, 미세 대비 판별 훈련을 거치면 뇌가 흐릿한 시각 입력 신호 속에서 잡음(Noise)을 걸러내는 뇌 가소성(Neuroplasticity)이 촉진되어 실제 시각 선명도가 눈에 띄게 개선됩니다.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

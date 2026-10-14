@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Play, Pause, RotateCcw, Eye, Sparkles, Layers, ShieldCheck, Info } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -6,12 +6,32 @@ interface Step1Props {
   isActive: boolean;
   onComplete: () => void;
   speak: (text: string) => void;
+  isFullscreen?: boolean;
+  onRunningChange?: (running: boolean) => void;
+  onStateUpdate?: (state: {
+    isPlaying: boolean;
+    secondsLeft: number;
+    totalSeconds: number;
+    phaseInfo?: string;
+    extraInfo?: string;
+  }) => void;
+  playTrigger?: number;
+  resetTrigger?: number;
 }
 
 type Phase = "BLINK" | "SQUEEZE" | "OPEN";
 type ViewMode = "REALISTIC_FRONT" | "ANATOMY_SECTION";
 
-export default function Step1BlinkSqueeze({ isActive, onComplete, speak }: Step1Props) {
+export default function Step1BlinkSqueeze({
+  isActive,
+  onComplete,
+  speak,
+  isFullscreen = false,
+  onRunningChange,
+  onStateUpdate,
+  playTrigger,
+  resetTrigger,
+}: Step1Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [phase, setPhase] = useState<Phase>("BLINK");
@@ -19,6 +39,36 @@ export default function Step1BlinkSqueeze({ isActive, onComplete, speak }: Step1
   const [repsCompleted, setRepsCompleted] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("REALISTIC_FRONT");
   const [lipidOutput, setLipidOutput] = useState(20); // 0 to 100%
+
+  const prevPlayTriggerRef = useRef(playTrigger);
+  const prevResetTriggerRef = useRef(resetTrigger);
+
+  // Sync external triggers
+  useEffect(() => {
+    if (playTrigger !== undefined && playTrigger !== prevPlayTriggerRef.current) {
+      prevPlayTriggerRef.current = playTrigger;
+      togglePlay();
+    }
+  }, [playTrigger]);
+
+  useEffect(() => {
+    if (resetTrigger !== undefined && resetTrigger !== prevResetTriggerRef.current) {
+      prevResetTriggerRef.current = resetTrigger;
+      resetExercise();
+    }
+  }, [resetTrigger]);
+
+  // Notify parent of state changes
+  useEffect(() => {
+    onRunningChange?.(isPlaying);
+    onStateUpdate?.({
+      isPlaying,
+      secondsLeft,
+      totalSeconds: 60,
+      phaseInfo: `${repsCompleted}/10회 · ${getPhaseLabel()}`,
+      extraInfo: `지질 분비 활성도 ${lipidOutput}%`,
+    });
+  }, [isPlaying, secondsLeft, repsCompleted, phase, lipidOutput]);
 
   // Initialize and guide
   useEffect(() => {
@@ -124,49 +174,86 @@ export default function Step1BlinkSqueeze({ isActive, onComplete, speak }: Step1
   const glandCount = 20;
 
   return (
-    <div id="step-1-container" className="flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+    <div
+      id="step-1-container"
+      className={
+        isFullscreen
+          ? "w-full h-full flex flex-col items-center justify-center bg-transparent border-0 rounded-none shadow-none p-2 sm:p-4 text-white"
+          : "flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm"
+      }
+    >
       {/* Top Header */}
-      <div className="text-center space-y-1.5 w-full">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block" />
-            <h3 className="text-base font-bold text-slate-800" id="step1-header-title">
-              1단계: 마이봄샘 자극 및 눈물막 안정화
-            </h3>
+      {!isFullscreen ? (
+        <div className="text-center space-y-1.5 w-full">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block" />
+              <h3 className="text-base font-bold text-slate-800" id="step1-header-title">
+                1단계: 마이봄샘 자극 및 눈물막 안정화
+              </h3>
+            </div>
+
+            {/* Realistic View Mode Switcher */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                onClick={() => setViewMode("REALISTIC_FRONT")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "REALISTIC_FRONT"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                실사 안구 뷰
+              </button>
+              <button
+                onClick={() => setViewMode("ANATOMY_SECTION")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "ANATOMY_SECTION"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                마이봄샘 단면도
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 text-left">
+            스마트폰 화면을 볼 때 눈 깜빡임이 1/3로 줄어 마이봄샘이 막힙니다. 10회 루프로 고착된 기름샘을 뚫어 수분 증발을 막습니다.
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between w-full max-w-4xl px-2 mb-2 text-xs">
+          <div className="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-slate-300 font-semibold">{getPhaseDesc()}</span>
           </div>
 
-          {/* Realistic View Mode Switcher */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+          <div className="flex items-center bg-slate-900/80 p-0.5 rounded-lg border border-slate-800 text-xs">
             <button
               onClick={() => setViewMode("REALISTIC_FRONT")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "REALISTIC_FRONT"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                viewMode === "REALISTIC_FRONT" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
               실사 안구 뷰
             </button>
             <button
               onClick={() => setViewMode("ANATOMY_SECTION")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "ANATOMY_SECTION"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                viewMode === "ANATOMY_SECTION" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
               마이봄샘 단면도
             </button>
           </div>
         </div>
-        <p className="text-xs text-slate-500 text-left">
-          스마트폰 화면을 볼 때 눈 깜빡임이 1/3로 줄어 마이봄샘이 막힙니다. 10회 루프로 고착된 기름샘을 뚫어 수분 증발을 막습니다.
-        </p>
-      </div>
+      )}
 
       {/* Main Realistic Simulation Viewport */}
       <div
-        className="relative w-full h-72 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none"
+        className={`relative w-full ${
+          isFullscreen ? "h-[calc(100vh-180px)] min-h-[460px]" : "h-72"
+        } bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none`}
         id="step1-visual-canvas"
       >
         {/* Phase Badge */}
@@ -182,7 +269,7 @@ export default function Step1BlinkSqueeze({ isActive, onComplete, speak }: Step1
 
         {/* VIEW A: REALISTIC FRONTAL HUMAN EYE */}
         {viewMode === "REALISTIC_FRONT" && (
-          <div className="relative w-72 h-44 flex items-center justify-center">
+          <div className={`relative ${isFullscreen ? "w-[480px] h-[300px] max-w-full" : "w-72 h-44"} flex items-center justify-center transition-all duration-300`}>
             {/* SVG Base Eye Rendering */}
             <svg
               className="w-full h-full drop-shadow-[0_10px_25px_rgba(0,0,0,0.6)]"
@@ -517,63 +604,68 @@ export default function Step1BlinkSqueeze({ isActive, onComplete, speak }: Step1
         </div>
       </div>
 
-      {/* Description of current phase */}
-      <div className="w-full text-center px-2">
-        <p className="text-xs font-semibold text-slate-700">
-          {getPhaseDesc()}
-        </p>
-      </div>
-
-      {/* Control Actions & Timer */}
-      <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
-        <div className="text-left">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 시간</div>
-          <div className="text-2xl font-mono font-bold text-slate-800">
-            {Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, "0")}
+      {/* Controls & Footnote (only in standard view) */}
+      {!isFullscreen && (
+        <>
+          {/* Description of current phase */}
+          <div className="w-full text-center px-2">
+            <p className="text-xs font-semibold text-slate-700">
+              {getPhaseDesc()}
+            </p>
           </div>
-        </div>
 
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={togglePlay}
-            id="step1-play-btn"
-            className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
-              isPlaying
-                ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
-            }`}
-          >
-            {isPlaying ? (
-              <>
-                <Pause className="w-4 h-4" />
-                <span>일시정지</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>훈련 시작</span>
-              </>
-            )}
-          </button>
+          {/* Control Actions & Timer */}
+          <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
+            <div className="text-left">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 시간</div>
+              <div className="text-2xl font-mono font-bold text-slate-800">
+                {Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, "0")}
+              </div>
+            </div>
 
-          <button
-            onClick={resetExercise}
-            id="step1-reset-btn"
-            className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
-            title="다시 시작"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={togglePlay}
+                id="step1-play-btn"
+                className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
+                  isPlaying
+                    ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
+                }`}
+              >
+                {isPlaying ? (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    <span>일시정지</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    <span>훈련 시작</span>
+                  </>
+                )}
+              </button>
 
-      {/* Scientific footnote */}
-      <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
-        <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
-          <strong>안과학 팩트:</strong> 눈물은 단순히 물이 아니라 <em>지질층-수성층-점액층</em>의 복합체입니다. 위 실사 시뮬레이션처럼 눈꺼풀 가장자리의 20~30개 마이봄샘 구멍에서 맑은 기름이 나와 덮어주지 않으면, 눈물은 2~3초 만에 증발해 각막 상피에 미세 스크래치와 뻑뻑함을 유발합니다.
-        </p>
-      </div>
+              <button
+                onClick={resetExercise}
+                id="step1-reset-btn"
+                className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
+                title="다시 시작"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Scientific footnote */}
+          <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
+            <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              <strong>안과학 팩트:</strong> 눈물은 단순히 물이 아니라 <em>지질층-수성층-점액층</em>의 복합체입니다. 위 실사 시뮬레이션처럼 눈꺼풀 가장자리의 20~30개 마이봄샘 구멍에서 맑은 기름이 나와 덮어주지 않으면, 눈물은 2~3초 만에 증발해 각막 상피에 미세 스크래치와 뻑뻑함을 유발합니다.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

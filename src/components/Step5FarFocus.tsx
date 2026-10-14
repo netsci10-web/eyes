@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Play, Pause, RotateCcw, Eye, Heart, Info, Wind, Compass } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -6,18 +6,68 @@ interface Step5Props {
   isActive: boolean;
   onComplete: () => void;
   speak: (text: string) => void;
+  isFullscreen?: boolean;
+  onRunningChange?: (running: boolean) => void;
+  onStateUpdate?: (state: {
+    isPlaying: boolean;
+    secondsLeft: number;
+    totalSeconds: number;
+    phaseInfo?: string;
+    extraInfo?: string;
+  }) => void;
+  playTrigger?: number;
+  resetTrigger?: number;
 }
 
 type BreathPhase = "INHALE" | "HOLD" | "EXHALE";
 type ViewMode = "REALISTIC_VISTA" | "RELAXATION_GAUGE";
 
-export default function Step5FarFocus({ isActive, onComplete, speak }: Step5Props) {
+export default function Step5FarFocus({
+  isActive,
+  onComplete,
+  speak,
+  isFullscreen = false,
+  onRunningChange,
+  onStateUpdate,
+  playTrigger,
+  resetTrigger,
+}: Step5Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(20);
   const [breathPhase, setBreathPhase] = useState<BreathPhase>("INHALE");
   const [breathSeconds, setBreathSeconds] = useState(4);
   const [viewMode, setViewMode] = useState<ViewMode>("REALISTIC_VISTA");
   const [parasympatheticTone, setParasympatheticTone] = useState(40); // 0-100%
+
+  const prevPlayTriggerRef = useRef(playTrigger);
+  const prevResetTriggerRef = useRef(resetTrigger);
+
+  // Sync external triggers
+  useEffect(() => {
+    if (playTrigger !== undefined && playTrigger !== prevPlayTriggerRef.current) {
+      prevPlayTriggerRef.current = playTrigger;
+      togglePlay();
+    }
+  }, [playTrigger]);
+
+  useEffect(() => {
+    if (resetTrigger !== undefined && resetTrigger !== prevResetTriggerRef.current) {
+      prevResetTriggerRef.current = resetTrigger;
+      resetExercise();
+    }
+  }, [resetTrigger]);
+
+  // Notify parent of state changes
+  useEffect(() => {
+    onRunningChange?.(isPlaying);
+    onStateUpdate?.({
+      isPlaying,
+      secondsLeft,
+      totalSeconds: 20,
+      phaseInfo: `20-20-20 원거리 이완 (${breathPhase === "INHALE" ? "들숨" : breathPhase === "HOLD" ? "숨 멈춤" : "날숨"} ${breathSeconds}초)`,
+      extraInfo: `부교감신경 긴장 완화도 ${parasympatheticTone}%`,
+    });
+  }, [isPlaying, secondsLeft, breathPhase, breathSeconds, parasympatheticTone]);
 
   // Speech initialization
   useEffect(() => {
@@ -109,49 +159,88 @@ export default function Step5FarFocus({ isActive, onComplete, speak }: Step5Prop
   };
 
   return (
-    <div id="step-5-container" className="flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+    <div
+      id="step-5-container"
+      className={
+        isFullscreen
+          ? "w-full h-full flex flex-col items-center justify-center bg-transparent border-0 rounded-none shadow-none p-2 sm:p-4 text-white"
+          : "flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm"
+      }
+    >
       {/* Header */}
-      <div className="text-center space-y-1.5 w-full">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block" />
-            <h3 className="text-base font-bold text-slate-800" id="step5-header-title">
-              5단계: 20-20-20 규칙 원거리 완전 이완 (Spasm Release)
-            </h3>
+      {!isFullscreen ? (
+        <div className="text-center space-y-1.5 w-full">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block" />
+              <h3 className="text-base font-bold text-slate-800" id="step5-header-title">
+                5단계: 20-20-20 규칙 원거리 완전 이완 (Spasm Release)
+              </h3>
+            </div>
+
+            {/* View mode toggle */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                onClick={() => setViewMode("REALISTIC_VISTA")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "REALISTIC_VISTA"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                대기 원근 풍경
+              </button>
+              <button
+                onClick={() => setViewMode("RELAXATION_GAUGE")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "RELAXATION_GAUGE"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                조절 이완도 모니터
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 text-left">
+            미국 안과학회(AAO) 공식 권장: 20분마다 <strong>20피트(약 6미터)</strong> 떨어진 먼 곳을 20초간 바라보아 모양체 근육을 0D 기본 상태로 이완합니다.
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between w-full max-w-4xl px-2 mb-2 text-xs">
+          <div className="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
+            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+            <span className="text-slate-300 font-semibold">
+              화면에서 시선을 돌려 6m 이상 먼 곳(창밖/벽)을 바라보며 깊게 심호흡하세요
+            </span>
           </div>
 
-          {/* View mode toggle */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+          <div className="flex items-center bg-slate-900/80 p-0.5 rounded-lg border border-slate-800 text-xs">
             <button
               onClick={() => setViewMode("REALISTIC_VISTA")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "REALISTIC_VISTA"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                viewMode === "REALISTIC_VISTA" ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              대기 원근 풍경
+              원근 풍경
             </button>
             <button
               onClick={() => setViewMode("RELAXATION_GAUGE")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "RELAXATION_GAUGE"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                viewMode === "RELAXATION_GAUGE" ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              조절 이완도 모니터
+              이완 모니터
             </button>
           </div>
         </div>
-        <p className="text-xs text-slate-500 text-left">
-          미국 안과학회(AAO) 공식 권장: 20분마다 <strong>20피트(약 6미터)</strong> 떨어진 먼 곳을 20초간 바라보아 모양체 근육을 0D 기본 상태로 이완합니다.
-        </p>
-      </div>
+      )}
 
       {/* Main Simulation Viewport */}
       <div
-        className="relative w-full h-72 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none"
+        className={`relative w-full ${
+          isFullscreen ? "h-[calc(100vh-180px)] min-h-[460px]" : "h-72"
+        } rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none`}
         id="step5-visual-canvas"
       >
         {/* VIEW A: REALISTIC ATMOSPHERIC VISTA WITH OPTICAL DEPTH OF FIELD */}
@@ -357,63 +446,68 @@ export default function Step5FarFocus({ isActive, onComplete, speak }: Step5Prop
         </div>
       </div>
 
-      {/* Guide text */}
-      <div className="w-full text-center px-2">
-        <p className="text-xs font-semibold text-slate-700">
-          실제 눈앞의 화면이 아닌, <strong>방 건너편 창문 밖 먼 풍경이나 가로수</strong>를 멍하니 20초간 바라보며 가슴을 활짝 펴세요.
-        </p>
-      </div>
-
-      {/* Action Controls */}
-      <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
-        <div className="text-left">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 시간</div>
-          <div className="text-2xl font-mono font-bold text-slate-800">
-            {secondsLeft}초
+      {/* Controls & Scientific Context (only in standard view) */}
+      {!isFullscreen && (
+        <>
+          {/* Guide text */}
+          <div className="w-full text-center px-2">
+            <p className="text-xs font-semibold text-slate-700">
+              실제 눈앞의 화면이 아닌, <strong>방 건너편 창문 밖 먼 풍경이나 가로수</strong>를 멍하니 20초간 바라보며 가슴을 활짝 펴세요.
+            </p>
           </div>
-        </div>
 
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={togglePlay}
-            id="step5-play-btn"
-            className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
-              isPlaying
-                ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
-            }`}
-          >
-            {isPlaying ? (
-              <>
-                <Pause className="w-4 h-4" />
-                <span>일시정지</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>훈련 시작</span>
-              </>
-            )}
-          </button>
+          {/* Action Controls */}
+          <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
+            <div className="text-left">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 시간</div>
+              <div className="text-2xl font-mono font-bold text-slate-800">
+                {secondsLeft}초
+              </div>
+            </div>
 
-          <button
-            onClick={resetExercise}
-            id="step5-reset-btn"
-            className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
-            title="다시 시작"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={togglePlay}
+                id="step5-play-btn"
+                className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
+                  isPlaying
+                    ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
+                }`}
+              >
+                {isPlaying ? (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    <span>일시정지</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    <span>훈련 시작</span>
+                  </>
+                )}
+              </button>
 
-      {/* Scientific context */}
-      <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
-        <Info className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
-          <strong>안과학 팩트:</strong> 6미터(20피트) 이상의 거리는 광학적으로 <em>'무한대(Infinity)'</em>로 간주됩니다. 이 거리에서는 수정체가 더 이상 빛을 꺾기 위해 힘을 쓸 필요가 없어 모양체 근육이 0디옵터의 완벽한 휴식 상태로 진입합니다. 20초만 유지해도 컴퓨터 시각 증후군(CVS)의 80%가 예방됩니다.
-        </p>
-      </div>
+              <button
+                onClick={resetExercise}
+                id="step5-reset-btn"
+                className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
+                title="다시 시작"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Scientific context */}
+          <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
+            <Info className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              <strong>안과학 팩트:</strong> 6미터(20피트) 이상의 거리는 광학적으로 <em>'무한대(Infinity)'</em>로 간주됩니다. 이 거리에서는 수정체가 더 이상 빛을 꺾기 위해 힘을 쓸 필요가 없어 모양체 근육이 0디옵터의 완벽한 휴식 상태로 진입합니다. 20초만 유지해도 컴퓨터 시각 증후군(CVS)의 80%가 예방됩니다.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

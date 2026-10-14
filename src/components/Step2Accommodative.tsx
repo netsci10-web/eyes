@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Play, Pause, RotateCcw, Compass, Sparkles, Eye, Info, ZoomIn } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -6,6 +6,17 @@ interface Step2Props {
   isActive: boolean;
   onComplete: () => void;
   speak: (text: string) => void;
+  isFullscreen?: boolean;
+  onRunningChange?: (running: boolean) => void;
+  onStateUpdate?: (state: {
+    isPlaying: boolean;
+    secondsLeft: number;
+    totalSeconds: number;
+    phaseInfo?: string;
+    extraInfo?: string;
+  }) => void;
+  playTrigger?: number;
+  resetTrigger?: number;
 }
 
 type AccomState = "NEAR" | "FAR";
@@ -13,7 +24,16 @@ type ViewMode = "ANATOMY_OPTICS" | "FIELD_OF_VIEW";
 
 const LETTERS = ["E", "Ш", "M", "W", "C", "O", "A", "8", "5"];
 
-export default function Step2Accommodative({ isActive, onComplete, speak }: Step2Props) {
+export default function Step2Accommodative({
+  isActive,
+  onComplete,
+  speak,
+  isFullscreen = false,
+  onRunningChange,
+  onStateUpdate,
+  playTrigger,
+  resetTrigger,
+}: Step2Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [focusState, setFocusState] = useState<AccomState>("NEAR");
@@ -21,6 +41,36 @@ export default function Step2Accommodative({ isActive, onComplete, speak }: Step
   const [currentLetter, setCurrentLetter] = useState("E");
   const [cyclesCompleted, setCyclesCompleted] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("ANATOMY_OPTICS");
+
+  const prevPlayTriggerRef = useRef(playTrigger);
+  const prevResetTriggerRef = useRef(resetTrigger);
+
+  // Sync external triggers
+  useEffect(() => {
+    if (playTrigger !== undefined && playTrigger !== prevPlayTriggerRef.current) {
+      prevPlayTriggerRef.current = playTrigger;
+      togglePlay();
+    }
+  }, [playTrigger]);
+
+  useEffect(() => {
+    if (resetTrigger !== undefined && resetTrigger !== prevResetTriggerRef.current) {
+      prevResetTriggerRef.current = resetTrigger;
+      resetExercise();
+    }
+  }, [resetTrigger]);
+
+  // Notify parent of state changes
+  useEffect(() => {
+    onRunningChange?.(isPlaying);
+    onStateUpdate?.({
+      isPlaying,
+      secondsLeft,
+      totalSeconds: 60,
+      phaseInfo: `${cyclesCompleted}/6회 교대 · ${focusState === "NEAR" ? "근거리 모양체 수축" : "원거리 모양체 이완"}`,
+      extraInfo: `전환까지 ${cycleSeconds}초`,
+    });
+  }, [isPlaying, secondsLeft, cyclesCompleted, focusState, cycleSeconds]);
 
   // Trigger speech on step initiation
   useEffect(() => {
@@ -101,49 +151,94 @@ export default function Step2Accommodative({ isActive, onComplete, speak }: Step
   };
 
   return (
-    <div id="step-2-container" className="flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+    <div
+      id="step-2-container"
+      className={
+        isFullscreen
+          ? "w-full h-full flex flex-col items-center justify-center bg-transparent border-0 rounded-none shadow-none p-2 sm:p-4 text-white"
+          : "flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm"
+      }
+    >
       {/* Header */}
-      <div className="text-center space-y-1.5 w-full">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block" />
-            <h3 className="text-base font-bold text-slate-800" id="step2-header-title">
-              2단계: 모양체 근육 이완 및 조절 피로 완화
-            </h3>
+      {!isFullscreen ? (
+        <div className="text-center space-y-1.5 w-full">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block" />
+              <h3 className="text-base font-bold text-slate-800" id="step2-header-title">
+                2단계: 모양체 근육 이완 및 조절 피로 완화
+              </h3>
+            </div>
+
+            {/* View Mode Switcher */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                onClick={() => setViewMode("ANATOMY_OPTICS")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "ANATOMY_OPTICS"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                안구 광학 단면
+              </button>
+              <button
+                onClick={() => setViewMode("FIELD_OF_VIEW")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "FIELD_OF_VIEW"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                실제 시야 체험
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 text-left">
+            근거리 작업 시 안구 내 <em>모양체(Ciliary Muscle)</em>는 쉬지 않고 쥐어짜여 경련이 일어납니다. 원근 교대 주시로 수정체 조절 탄성을 복구합니다.
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between w-full max-w-4xl px-2 mb-2 text-xs">
+          <div className="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                focusState === "NEAR" ? "bg-amber-400" : "bg-teal-400"
+              } animate-pulse`}
+            />
+            <span className="text-slate-300 font-semibold">
+              {focusState === "NEAR"
+                ? "화면 중앙의 글자에 초점을 또렷이 맞추십시오 (근거리 조절 수축)"
+                : "화면 너머 먼 곳을 멍하니 바라보며 긴장을 푸십시오 (원거리 조절 이완)"}
+            </span>
           </div>
 
-          {/* View Mode Switcher */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+          <div className="flex items-center bg-slate-900/80 p-0.5 rounded-lg border border-slate-800 text-xs">
             <button
               onClick={() => setViewMode("ANATOMY_OPTICS")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "ANATOMY_OPTICS"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                viewMode === "ANATOMY_OPTICS" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              안구 광학 단면
+              광학 단면
             </button>
             <button
               onClick={() => setViewMode("FIELD_OF_VIEW")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "FIELD_OF_VIEW"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                viewMode === "FIELD_OF_VIEW" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              실제 시야 체험
+              시야 체험
             </button>
           </div>
         </div>
-        <p className="text-xs text-slate-500 text-left">
-          근거리 작업 시 안구 내 <em>모양체(Ciliary Muscle)</em>는 쉬지 않고 쥐어짜여 경련이 일어납니다. 원근 교대 주시로 수정체 조절 탄성을 복구합니다.
-        </p>
-      </div>
+      )}
 
       {/* Visual Workspace Container */}
       <div
-        className="relative w-full h-72 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none"
+        className={`relative w-full ${
+          isFullscreen ? "h-[calc(100vh-180px)] min-h-[460px]" : "h-72"
+        } bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none`}
         id="step2-visual-canvas"
       >
         {/* Dynamic Focus State Badge */}
@@ -406,65 +501,70 @@ export default function Step2Accommodative({ isActive, onComplete, speak }: Step
         </div>
       </div>
 
-      {/* Guide text */}
-      <div className="w-full text-center px-2">
-        <p className="text-xs font-semibold text-slate-700">
-          {focusState === "NEAR"
-            ? "화면 중앙의 글자에 초점을 또렷이 맞추며 모양체 근육의 유연한 조절력을 자극합니다."
-            : "화면 너머 먼 벽면이나 창밖 풍경을 멍하니 바라보며 모양체 수축 긴장을 완전히 풀어줍니다."}
-        </p>
-      </div>
-
-      {/* Action Controls */}
-      <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
-        <div className="text-left">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 훈련 시간</div>
-          <div className="text-2xl font-mono font-bold text-slate-800">
-            {Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, "0")}
+      {/* Controls & Medical context (only in standard view) */}
+      {!isFullscreen && (
+        <>
+          {/* Guide text */}
+          <div className="w-full text-center px-2">
+            <p className="text-xs font-semibold text-slate-700">
+              {focusState === "NEAR"
+                ? "화면 중앙의 글자에 초점을 또렷이 맞추며 모양체 근육의 유연한 조절력을 자극합니다."
+                : "화면 너머 먼 벽면이나 창밖 풍경을 멍하니 바라보며 모양체 수축 긴장을 완전히 풀어줍니다."}
+            </p>
           </div>
-        </div>
 
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={togglePlay}
-            id="step2-play-btn"
-            className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
-              isPlaying
-                ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
-            }`}
-          >
-            {isPlaying ? (
-              <>
-                <Pause className="w-4 h-4" />
-                <span>일시정지</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>훈련 시작</span>
-              </>
-            )}
-          </button>
+          {/* Action Controls */}
+          <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
+            <div className="text-left">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 훈련 시간</div>
+              <div className="text-2xl font-mono font-bold text-slate-800">
+                {Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, "0")}
+              </div>
+            </div>
 
-          <button
-            onClick={resetExercise}
-            id="step2-reset-btn"
-            className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
-            title="다시 시작"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={togglePlay}
+                id="step2-play-btn"
+                className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
+                  isPlaying
+                    ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
+                }`}
+              >
+                {isPlaying ? (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    <span>일시정지</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    <span>훈련 시작</span>
+                  </>
+                )}
+              </button>
 
-      {/* Medical Context */}
-      <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
-        <Info className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
-          <strong>안과학 팩트:</strong> 흔히 말하는 '가성 근시(Pseudomyopia)'나 컴퓨터 눈 피로는 안구 자체가 나빠진 것이 아니라, <strong>수정체를 당기는 모양체 근육이 장시간 수축된 채 쥐가 난 것(조절 경련)</strong>입니다. 이 훈련은 쥐가 난 근육을 스트레칭하여 조절 유연성을 되살립니다.
-        </p>
-      </div>
+              <button
+                onClick={resetExercise}
+                id="step2-reset-btn"
+                className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
+                title="다시 시작"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Medical Context */}
+          <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
+            <Info className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              <strong>안과학 팩트:</strong> 흔히 말하는 '가성 근시(Pseudomyopia)'나 컴퓨터 눈 피로는 안구 자체가 나빠진 것이 아니라, <strong>수정체를 당기는 모양체 근육이 장시간 수축된 채 쥐가 난 것(조절 경련)</strong>입니다. 이 훈련은 쥐가 난 근육을 스트레칭하여 조절 유연성을 되살립니다.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

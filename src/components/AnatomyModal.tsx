@@ -34,7 +34,7 @@ export default function AnatomyModal({ isOpen, onClose, initialStep = 1 }: Anato
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto"
+      className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-fade-in overflow-y-auto"
       id="anatomy-modal-backdrop"
       onClick={onClose}
     >

@@ -6,6 +6,17 @@ interface Step3Props {
   isActive: boolean;
   onComplete: () => void;
   speak: (text: string) => void;
+  isFullscreen?: boolean;
+  onRunningChange?: (running: boolean) => void;
+  onStateUpdate?: (state: {
+    isPlaying: boolean;
+    secondsLeft: number;
+    totalSeconds: number;
+    phaseInfo?: string;
+    extraInfo?: string;
+  }) => void;
+  playTrigger?: number;
+  resetTrigger?: number;
 }
 
 // 9 Positions with anatomical muscle activation profiles
@@ -23,7 +34,16 @@ const POSITIONS = [
 
 type ViewMode = "RADAR_TRACKER" | "MUSCLE_ANATOMY";
 
-export default function Step3Saccades({ isActive, onComplete, speak }: Step3Props) {
+export default function Step3Saccades({
+  isActive,
+  onComplete,
+  speak,
+  isFullscreen = false,
+  onRunningChange,
+  onStateUpdate,
+  playTrigger,
+  resetTrigger,
+}: Step3Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [currentPosIdx, setCurrentPosIdx] = useState(4); // Start center
@@ -31,6 +51,36 @@ export default function Step3Saccades({ isActive, onComplete, speak }: Step3Prop
   const [jumpCount, setJumpCount] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("RADAR_TRACKER");
   const [saccadeVelocity, setSaccadeVelocity] = useState(420); // deg/sec
+
+  const prevPlayTriggerRef = useRef(playTrigger);
+  const prevResetTriggerRef = useRef(resetTrigger);
+
+  // Sync external triggers
+  useEffect(() => {
+    if (playTrigger !== undefined && playTrigger !== prevPlayTriggerRef.current) {
+      prevPlayTriggerRef.current = playTrigger;
+      togglePlay();
+    }
+  }, [playTrigger]);
+
+  useEffect(() => {
+    if (resetTrigger !== undefined && resetTrigger !== prevResetTriggerRef.current) {
+      prevResetTriggerRef.current = resetTrigger;
+      resetExercise();
+    }
+  }, [resetTrigger]);
+
+  // Notify parent on state change
+  useEffect(() => {
+    onRunningChange?.(isPlaying);
+    onStateUpdate?.({
+      isPlaying,
+      secondsLeft,
+      totalSeconds: 60,
+      phaseInfo: `타겟 도약: ${jumpCount}회 완료 (${POSITIONS[currentPosIdx].label})`,
+      extraInfo: `${saccadeVelocity} deg/sec`,
+    });
+  }, [isPlaying, secondsLeft, jumpCount, currentPosIdx, saccadeVelocity]);
 
   const activePos = POSITIONS[currentPosIdx];
 
@@ -107,80 +157,144 @@ export default function Step3Saccades({ isActive, onComplete, speak }: Step3Prop
   const eyeRotY = ((activePos.y - 50) / 32) * 16;
 
   return (
-    <div id="step-3-container" className="flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-      {/* Header */}
-      <div className="text-center space-y-1.5 w-full">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block" />
-            <h3 className="text-base font-bold text-slate-800" id="step3-header-title">
-              3단계: 정밀 단속 안구 운동 (Saccades)
-            </h3>
+    <div
+      id="step-3-container"
+      className={
+        isFullscreen
+          ? "w-full h-full flex flex-col items-center justify-center bg-transparent border-0 rounded-none shadow-none p-2 sm:p-4 text-white"
+          : "flex flex-col items-center space-y-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm"
+      }
+    >
+      {/* Header (condensed when in fullscreen) */}
+      {!isFullscreen ? (
+        <div className="text-center space-y-1.5 w-full">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block" />
+              <h3 className="text-base font-bold text-slate-800" id="step3-header-title">
+                3단계: 정밀 단속 안구 운동 (Saccades)
+              </h3>
+            </div>
+
+            {/* View mode toggle */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                onClick={() => setViewMode("RADAR_TRACKER")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "RADAR_TRACKER"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                단속 추적 레이다
+              </button>
+              <button
+                onClick={() => setViewMode("MUSCLE_ANATOMY")}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  viewMode === "MUSCLE_ANATOMY"
+                    ? "bg-white text-slate-900 shadow-xs font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                6대 외안근 근전도
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 text-left">
+            시선을 도약시키는 단속 운동(Saccade)은 뇌의 <em>전두안야(FEF)</em>와 6개 <em>외안근</em>을 동기화하여 독서 및 주시 피로를 극적으로 줄입니다.
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between w-full max-w-4xl px-2 mb-2 text-xs">
+          <div className="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
+            <span className="text-slate-400 font-semibold">도약 속도:</span>
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => setJumpSpeedMs(1000)}
+                className={`px-2 py-0.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  jumpSpeedMs === 1000 ? "bg-orange-600 text-white font-bold" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                1.0초
+              </button>
+              <button
+                onClick={() => setJumpSpeedMs(750)}
+                className={`px-2 py-0.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  jumpSpeedMs === 750 ? "bg-orange-600 text-white font-bold" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                0.75초
+              </button>
+              <button
+                onClick={() => setJumpSpeedMs(500)}
+                className={`px-2 py-0.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  jumpSpeedMs === 500 ? "bg-orange-600 text-white font-bold" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                0.5초 (빠름)
+              </button>
+            </div>
           </div>
 
-          {/* View mode toggle */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+          <div className="flex items-center space-x-2 bg-slate-900/80 px-2.5 py-1 rounded-xl border border-slate-800">
             <button
               onClick={() => setViewMode("RADAR_TRACKER")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "RADAR_TRACKER"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                viewMode === "RADAR_TRACKER" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              단속 추적 레이다
+              단속 레이다
             </button>
             <button
               onClick={() => setViewMode("MUSCLE_ANATOMY")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                viewMode === "MUSCLE_ANATOMY"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-500 hover:text-slate-800"
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                viewMode === "MUSCLE_ANATOMY" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              6대 외안근 근전도
+              외안근 해부
             </button>
           </div>
         </div>
-        <p className="text-xs text-slate-500 text-left">
-          시선을 도약시키는 단속 운동(Saccade)은 뇌의 <em>전두안야(FEF)</em>와 6개 <em>외안근</em>을 동기화하여 독서 및 주시 피로를 극적으로 줄입니다.
-        </p>
-      </div>
+      )}
 
-      {/* Speed Selector Tabs */}
-      <div className="flex items-center space-x-2 bg-slate-100 p-1 rounded-xl text-xs w-full max-w-sm justify-between">
-        <span className="text-slate-500 font-semibold pl-2">도약 속도:</span>
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => setJumpSpeedMs(1000)}
-            className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-              jumpSpeedMs === 1000 ? "bg-white text-orange-600 shadow-xs font-bold" : "text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            초당 1회
-          </button>
-          <button
-            onClick={() => setJumpSpeedMs(750)}
-            className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-              jumpSpeedMs === 750 ? "bg-white text-orange-600 shadow-xs font-bold" : "text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            초당 1.3회
-          </button>
-          <button
-            onClick={() => setJumpSpeedMs(500)}
-            className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-              jumpSpeedMs === 500 ? "bg-white text-orange-600 shadow-xs font-bold" : "text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            초당 2회 (도전)
-          </button>
+      {/* Speed Selector Tabs (only in standard view) */}
+      {!isFullscreen && (
+        <div className="flex items-center space-x-2 bg-slate-100 p-1 rounded-xl text-xs w-full max-w-sm justify-between">
+          <span className="text-slate-500 font-semibold pl-2">도약 속도:</span>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => setJumpSpeedMs(1000)}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                jumpSpeedMs === 1000 ? "bg-white text-orange-600 shadow-xs font-bold" : "text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              초당 1회
+            </button>
+            <button
+              onClick={() => setJumpSpeedMs(750)}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                jumpSpeedMs === 750 ? "bg-white text-orange-600 shadow-xs font-bold" : "text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              초당 1.3회
+            </button>
+            <button
+              onClick={() => setJumpSpeedMs(500)}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                jumpSpeedMs === 500 ? "bg-white text-orange-600 shadow-xs font-bold" : "text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              초당 2회 (도전)
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Simulation Viewport */}
       <div
-        className="relative w-full h-72 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none"
+        className={`relative w-full ${
+          isFullscreen ? "h-[calc(100vh-180px)] min-h-[460px]" : "h-72"
+        } bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden shadow-inner select-none`}
         id="step3-visual-canvas"
       >
         {/* VIEW A: PRECISION NEURO-SACCADIC RADAR */}
@@ -396,56 +510,60 @@ export default function Step3Saccades({ isActive, onComplete, speak }: Step3Prop
         </div>
       </div>
 
-      {/* Control Actions & Timer */}
-      <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
-        <div className="text-left">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 훈련 시간</div>
-          <div className="text-2xl font-mono font-bold text-slate-800">
-            {Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, "0")}
+      {/* Control Actions & Timer (only when in standard view, since fullscreen bottom bar handles it) */}
+      {!isFullscreen && (
+        <>
+          <div className="flex items-center space-x-6 w-full max-w-sm justify-between pt-1">
+            <div className="text-left">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">남은 훈련 시간</div>
+              <div className="text-2xl font-mono font-bold text-slate-800">
+                {Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, "0")}
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={togglePlay}
+                id="step3-play-btn"
+                className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
+                  isPlaying
+                    ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
+                }`}
+              >
+                {isPlaying ? (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    <span>일시정지</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    <span>훈련 시작</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={resetExercise}
+                id="step3-reset-btn"
+                className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
+                title="다시 시작"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={togglePlay}
-            id="step3-play-btn"
-            className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all cursor-pointer ${
-              isPlaying
-                ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow"
-            }`}
-          >
-            {isPlaying ? (
-              <>
-                <Pause className="w-4 h-4" />
-                <span>일시정지</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>훈련 시작</span>
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={resetExercise}
-            id="step3-reset-btn"
-            className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors border border-slate-200 cursor-pointer"
-            title="다시 시작"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Guide details */}
-      <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
-        <Info className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
-          <strong>안과학 팩트:</strong> 단속 운동(Saccade)은 인간 신체에서 가장 빠른 운동 중 하나로, 최대 초당 500도 이상으로 눈을 이동시킵니다. 스마트폰의 정적인 화면에 장시간 노출되면 외안근의 협응 능력이 감퇴하여 독서 집중력이 저하됩니다. 머리는 반드시 고정하고 시선만 튕기십시오!
-        </p>
-      </div>
+          {/* Guide details */}
+          <div className="w-full border border-slate-100 rounded-xl p-3 bg-slate-50/70 text-[11px] text-slate-600 flex items-start space-x-2">
+            <Info className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              <strong>안과학 팩트:</strong> 단속 운동(Saccade)은 인간 신체에서 가장 빠른 운동 중 하나로, 최대 초당 500도 이상으로 눈을 이동시킵니다. 스마트폰의 정적인 화면에 장시간 노출되면 외안근의 협응 능력이 감퇴하여 독서 집중력이 저하됩니다. 머리는 반드시 고정하고 시선만 튕기십시오!
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }
